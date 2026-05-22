@@ -18,4 +18,7 @@ First cut — the open, offline-first `.fafm` SDK.
   placeholder). `init --demo` seeds a curated, shippable demo soul (`examples/`).
   No fake "Grok read it back" claims.
 - Format-compatible with `fafm-engine` and `grok-faf-voice` — one format, no fork.
+- WJTTC 4-tier test regime (BRAKE / ENGINE / AERO; TYRE awaits the backend) +
+  `WJTTC.md`; 16 tests, 0 untiered (`faf wjttc`).
+- `examples/` — runnable offline → portable → cross-vendor walkthrough + demo soul.
 - MIT licensed; `uv`/`uvx`-first install.
