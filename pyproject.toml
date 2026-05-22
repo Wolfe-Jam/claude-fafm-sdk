@@ -30,6 +30,9 @@ Homepage = "https://memory.faf.one"
 Repository = "https://github.com/Wolfe-Jam/claude-fafm-sdk"
 "Format spec" = "https://github.com/Wolfe-Jam/faf"
 
+[project.scripts]
+claude-fafm-sdk = "claude_fafm_sdk.cli:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

@@ -13,5 +13,7 @@ First cut — the open, offline-first `.fafm` SDK.
 - `Fact` — the memory unit (`text` required; id/type/priority/tags/links/… optional).
 - `Namepoint` — client contract for the free-namepoint full intel (semantic
   recall, smart-merge) at personal scale; backend (`memory.faf.one`) coming.
+- CLI — `claude-fafm-sdk init / etch / recall` (uvx-friendly). `init` prints an
+  honest one-liner (real portable soul; no fake fact counts or readback claims).
 - Format-compatible with `fafm-engine` and `grok-faf-voice` — one format, no fork.
 - MIT licensed; `uv`/`uvx`-first install.

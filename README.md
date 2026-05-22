@@ -11,9 +11,18 @@ Offline-first: the local `Soul` works with no account. Connect a free
 
 ```sh
 uv add claude-fafm-sdk          # in a project (recommended)
-uvx claude-fafm-sdk             # zero-install run
 pip3 install claude-fafm-sdk    # also works
 ```
+
+## 30 seconds
+
+```sh
+uvx claude-fafm-sdk init                 # 🧬 create a portable soul
+claude-fafm-sdk etch "ships uv-first"    # write a memory
+claude-fafm-sdk recall uv                # recall it
+```
+
+Hand `soul.fafm` to `grok-faf-voice` and it reads it — same format, no fork.
 
 ## Quickstart
 
