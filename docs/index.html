@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>claude-fafm-sdk — portable AI memory</title>
+<meta name="description" content="Give your AI agent memory that moves between models. Open .fafm format, offline-first, no vendor lock-in.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a0a; --panel:#141414; --line:#262626;
+    --ink:#f5f5f5; --dim:#a3a3a3;
+    --orange:#FF6B35; --cyan:#00D4D4; --green:#00BF63;
+    --mono:"Roboto Mono",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Inter",system-ui,sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto;padding:0 24px}
+  a{color:var(--cyan);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code,pre{font-family:var(--mono)}
+  pre{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:18px 20px;overflow:auto;font-size:14px}
+  .pill{display:inline-block;font-family:var(--mono);font-size:12px;color:var(--cyan);
+    border:1px solid var(--line);border-radius:999px;padding:4px 12px;margin-bottom:22px}
+  header{padding:88px 0 56px}
+  h1{font-size:52px;line-height:1.05;font-weight:800;margin:0 0 16px;letter-spacing:-.02em}
+  h1 .accent{color:var(--orange)}
+  .lede{font-size:20px;color:var(--dim);margin:0 0 28px;max-width:600px}
+  .cta{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .btn{font-family:var(--mono);font-size:14px;padding:11px 18px;border-radius:9px;
+    border:1px solid var(--line);color:var(--ink)}
+  .btn.primary{background:var(--orange);border-color:var(--orange);color:#0a0a0a;font-weight:500}
+  section{padding:40px 0;border-top:1px solid var(--line)}
+  h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--cyan);
+    font-weight:600;margin:0 0 18px}
+  h3{font-size:21px;font-weight:600;margin:0 0 8px}
+  p{margin:0 0 14px;color:var(--dim)}
+  p strong{color:var(--ink);font-weight:600}
+  .grid{display:grid;gap:22px}
+  @media(min-width:640px){.grid.two{grid-template-columns:1fr 1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px}
+  .free{color:var(--green);font-weight:600}
+  footer{padding:48px 0 72px;color:var(--dim);font-size:14px}
+  footer a{margin-right:18px}
+  @media(max-width:560px){h1{font-size:38px}header{padding:60px 0 40px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="pill">application/vnd.fafm+yaml · open · IANA-registered</span>
+    <h1>Portable <span class="accent">AI memory</span>.</h1>
+    <p class="lede">Give your AI agent memory that versions with your project and
+      moves between models — instead of being locked to one vendor.</p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/Wolfe-Jam/claude-fafm-sdk">GitHub</a>
+      <a class="btn" href="https://pypi.org/project/claude-fafm-sdk/">PyPI</a>
+      <code style="color:var(--dim)">uvx claude-fafm-sdk init</code>
+    </div>
+  </header>
+
+  <section>
+    <h2>30 seconds</h2>
+    <pre>uvx claude-fafm-sdk init                 # 🧬 a portable soul, offline
+claude-fafm-sdk etch "ships uv-first"    # write a memory
+claude-fafm-sdk recall uv                # recall it</pre>
+    <p>No account. No server. Your soul is a plain <code>.fafm</code> file you can
+      read, diff, and commit to git.</p>
+  </section>
+
+  <section class="grid two">
+    <div class="card">
+      <h3>Cross-vendor by design</h3>
+      <p>The same soul is read by <strong>grok-faf-voice</strong> and
+        <strong>fafm-engine</strong> — one open format, never a fork. Your agent's
+        memory isn't trapped in one model's walled garden.</p>
+    </div>
+    <div class="card">
+      <h3>Offline-first</h3>
+      <p>The local <code>Soul</code> works with zero dependencies and no account.
+        Add a <span class="free">free namepoint</span> when you want hosted, full-intel
+        recall at personal scale.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>The free namepoint</h2>
+    <p>One <span class="free">free namepoint</span> — your handle where the soul
+      lives, hosted and sticky, with the full intel (semantic recall, smart-merge)
+      at personal scale. <strong>Pay only when you scale</strong> — more namepoints,
+      a team, production — never to unlock the magic.</p>
+  </section>
+
+  <footer>
+    <a href="https://github.com/Wolfe-Jam/claude-fafm-sdk">GitHub</a>
+    <a href="https://pypi.org/project/claude-fafm-sdk/">PyPI</a>
+    <a href="https://github.com/Wolfe-Jam/faf">Format spec</a>
+    <div style="margin-top:14px">MIT · the format is open, the at-scale intel is the paid tier.</div>
+  </footer>
+
+</div>
+</body>
+</html>
