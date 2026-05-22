@@ -3,6 +3,12 @@
 All notable changes to `claude-fafm-sdk` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [0.1.1] — 2026-05-22
+
+### Changed
+- README: add PyPI badge + link.
+- Cross-link the `grok-faf-voice` voice profile (README + pyproject URL) — two profiles, one `.fafm` format.
+
 ## [0.1.0] — 2026-05-21
 
 First cut — the open, offline-first `.fafm` SDK.
