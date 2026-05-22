@@ -41,6 +41,9 @@ soul.recall("uv")               # deterministic recall, ranked by priority + rec
 
 That's the whole offline loop — no account, no server.
 
+More in **[examples/](examples/)** — portability + a real cross-vendor roundtrip
+(SDK writes `.fafm`, grok-faf-voice reads it back).
+
 ## Full intel (free namepoint)
 
 A **namepoint** is a free handle on [memory.faf.one](https://memory.faf.one)
