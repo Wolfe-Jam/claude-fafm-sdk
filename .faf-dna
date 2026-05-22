@@ -1,0 +1,41 @@
+{
+  "birthCertificate": {
+    "born": "2026-05-22T03:04:00.740Z",
+    "birthDNA": 42,
+    "birthDNASource": "init",
+    "projectDNA": "04fa1dba3298df8d",
+    "certificate": "FAF-2026-CLAUDEFA-0HIU"
+  },
+  "versions": [
+    {
+      "version": "v1.0.0",
+      "timestamp": "2026-05-22T03:04:00.740Z",
+      "score": 42,
+      "changes": [
+        "Birth — initial context"
+      ],
+      "growth": 0
+    }
+  ],
+  "current": {
+    "version": "v1.0.0",
+    "score": 42,
+    "lastSync": "2026-05-22T03:04:00.740Z"
+  },
+  "growth": {
+    "totalGrowth": 0,
+    "daysActive": 0,
+    "milestones": [
+      {
+        "type": "birth",
+        "score": 42,
+        "date": "2026-05-22T03:04:00.740Z",
+        "version": "v1.0.0",
+        "label": "Birth",
+        "emoji": "🐣"
+      }
+    ]
+  },
+  "lastModified": "2026-05-22T03:04:00.742Z",
+  "format": "faf-dna-v1"
+}

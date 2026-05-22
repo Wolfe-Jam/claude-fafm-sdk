@@ -1,0 +1,46 @@
+faf_version: 2.5.0
+project:
+  name: claude-fafm-sdk
+  goal: Portable cross-vendor AI memory
+  main_language: Python
+  type: library  # found: no classifying signals — fallback
+stack:
+  frontend: slotignored
+  css_framework: slotignored
+  ui_library: slotignored
+  state_management: slotignored
+  backend: slotignored
+  api_type: slotignored
+  runtime: slotignored
+  database: slotignored
+  connection: slotignored
+  hosting: PyPI; memory.faf.one (CF)
+  build: hatchling.build
+  cicd: slotignored
+  monorepo_tool: slotignored
+  package_manager: slotignored
+  workspaces: slotignored
+  admin: slotignored
+  cache: slotignored
+  search: slotignored
+  storage: slotignored
+human_context:
+  who: Devs building AI agents
+  what: Open .fafm memory SDK
+  why: AI memory is vendor-locked
+  where: PyPI, GitHub, memory.faf.one
+  when: Born 2026, active development
+  how: Offline Soul + namepoint client
+monorepo:
+  packages_count: slotignored
+  build_orchestrator: slotignored
+  versioning_strategy: slotignored
+  shared_configs: slotignored
+  remote_cache: slotignored
+tech_stack:
+  - Python
+key_files:
+  - pyproject.toml
+  - README.md
+commands:
+  test: pytest

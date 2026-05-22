@@ -1,0 +1,239 @@
+"""Soul — the local model of a ``.fafm`` knowledge soul (open, offline).
+
+Reads/writes ``application/vnd.fafm+yaml`` v1.1 and provides the basic memory
+operations every consumer needs: ``etch`` (write a fact, dedup by id) and
+``recall`` (deterministic filter + priority/recency rank). This is the OPEN
+baseline — it works offline with no account. Semantic/ranked recall and
+LLM smart-merge are the *full intel*, served via a namepoint (see ``client.py``).
+
+Format-compatible with `fafm-engine` and `grok-faf-voice` — one format, never a fork.
+"""
+
+from __future__ import annotations
+
+import datetime
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+# Canonical priority vocabulary (.fafm spec §6.1), low → high.
+PRIORITY_ORDER = ("ephemeral", "standard", "high", "critical")
+PRIORITY_RANK = {p: i for i, p in enumerate(PRIORITY_ORDER)}
+_LEGACY_PRIORITY = {"low": "ephemeral", "medium": "standard"}
+
+
+def _utcnow() -> str:
+    return datetime.datetime.now(tz=datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def canonical_priority(p: str | None) -> str:
+    """Map any input (incl. legacy vocab) to a canonical priority."""
+    if p is None:
+        return "standard"
+    return _LEGACY_PRIORITY.get(p, p if p in PRIORITY_RANK else "standard")
+
+
+@dataclass
+class Fact:
+    """A single memory unit. ``text`` is the only required field; everything
+    else is optional, per the spec — so any consumer can read a soul."""
+
+    text: str
+    id: str | None = None
+    type: str | None = None
+    priority: str = "standard"
+    tags: list[str] = field(default_factory=list)
+    links: list[str] = field(default_factory=list)
+    timestamp: str | None = None
+    source: str | None = None
+    extra: dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_obj(cls, obj: Any) -> Fact:
+        """Build a Fact from a bare string or a ``{text, ...}`` mapping."""
+        if isinstance(obj, str):
+            return cls(text=obj)
+        if not isinstance(obj, dict) or "text" not in obj:
+            raise ValueError(f"fact must be a string or a mapping with 'text': {obj!r}")
+        known = {"text", "id", "type", "priority", "tags", "links", "timestamp", "source"}
+        return cls(
+            text=obj["text"],
+            id=obj.get("id"),
+            type=obj.get("type"),
+            priority=canonical_priority(obj.get("priority")),
+            tags=list(obj.get("tags") or []),
+            links=list(obj.get("links") or []),
+            timestamp=obj.get("timestamp"),
+            source=obj.get("source"),
+            extra={k: v for k, v in obj.items() if k not in known},
+        )
+
+    def to_obj(self) -> Any:
+        """Serialize back to a `.fafm` fact. Bare string when it has no metadata."""
+        bare = (
+            self.id is None and self.type is None and not self.tags and not self.links
+            and self.timestamp is None and self.source is None and not self.extra
+            and self.priority == "standard"
+        )
+        if bare:
+            return self.text
+        out: dict[str, Any] = {"text": self.text}
+        if self.id is not None:
+            out["id"] = self.id
+        if self.type is not None:
+            out["type"] = self.type
+        out["priority"] = self.priority
+        if self.tags:
+            out["tags"] = self.tags
+        if self.links:
+            out["links"] = self.links
+        if self.timestamp is not None:
+            out["timestamp"] = self.timestamp
+        if self.source is not None:
+            out["source"] = self.source
+        out.update(self.extra)
+        return out
+
+
+class Soul:
+    """A loaded ``.fafm`` knowledge soul + its basic (offline) memory ops."""
+
+    def __init__(
+        self,
+        namepoint: str,
+        *,
+        profile: str = "knowledge",
+        facts: list[Fact] | None = None,
+        retention: str = "forever",
+        created: str | None = None,
+    ) -> None:
+        self.namepoint = namepoint
+        self.profile = profile
+        self.retention = retention
+        self.created = created or _utcnow()
+        self.last_etched = self.created
+        self._facts: list[Fact] = list(facts or [])
+        self._by_id: dict[str, int] = {
+            f.id: i for i, f in enumerate(self._facts) if f.id is not None
+        }
+
+    @property
+    def facts(self) -> list[Fact]:
+        return self._facts
+
+    @classmethod
+    def load(cls, path: str | Path) -> Soul:
+        """Load a ``.fafm`` soul from disk."""
+        doc = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+        if not isinstance(doc, dict):
+            raise ValueError("soul is not a YAML mapping")
+        memory = doc.get("memory") or {}
+        soul = cls(
+            namepoint=doc.get("namepoint", Path(path).stem),
+            profile=doc.get("profile", "knowledge"),
+            facts=[Fact.from_obj(f) for f in (memory.get("facts") or [])],
+            retention=doc.get("retention", "forever"),
+            created=doc.get("created"),
+        )
+        soul.last_etched = doc.get("last_etched", soul.created)
+        return soul
+
+    def to_doc(self) -> dict[str, Any]:
+        """The ``.fafm`` v1.1 document this soul serializes to."""
+        return {
+            "version": "1.1",
+            "profile": self.profile,
+            "namepoint": self.namepoint,
+            "created": self.created,
+            "last_etched": self.last_etched,
+            "retention": self.retention,
+            "memory": {
+                "facts": [f.to_obj() for f in self._facts],
+                "sessions": [],
+                "preferences": {},
+                "custom": {},
+            },
+        }
+
+    def save(self, path: str | Path) -> Path:
+        """Write the soul to disk as ``.fafm`` (vnd.fafm+yaml)."""
+        p = Path(path)
+        p.write_text(
+            yaml.safe_dump(self.to_doc(), sort_keys=False, allow_unicode=True, width=100),
+            encoding="utf-8",
+        )
+        return p
+
+    def etch(
+        self,
+        text: str,
+        *,
+        id: str | None = None,
+        type: str | None = None,
+        priority: str = "standard",
+        tags: list[str] | None = None,
+        links: list[str] | None = None,
+        source: str | None = None,
+    ) -> Fact:
+        """Write a fact. If ``id`` matches an existing fact it's updated in place
+        (O(1) dedup); otherwise appended."""
+        fact = Fact(
+            text=text,
+            id=id,
+            type=type,
+            priority=canonical_priority(priority),
+            tags=list(tags or []),
+            links=list(links or []),
+            timestamp=_utcnow(),
+            source=source,
+        )
+        if id is not None and id in self._by_id:
+            self._facts[self._by_id[id]] = fact
+        else:
+            self._facts.append(fact)
+            if id is not None:
+                self._by_id[id] = len(self._facts) - 1
+        self.last_etched = fact.timestamp or _utcnow()
+        return fact
+
+    def recall(
+        self,
+        query: str | None = None,
+        *,
+        tags: list[str] | None = None,
+        type: str | None = None,
+        min_priority: str = "ephemeral",
+        limit: int | None = None,
+    ) -> list[Fact]:
+        """Deterministic recall: case-insensitive substring match on ``text``,
+        tag intersection, type equality, priority floor — ranked by priority then
+        recency. (Semantic/ranked recall is the full intel — see ``client.py``.)"""
+        floor = PRIORITY_RANK.get(canonical_priority(min_priority), 0)
+        q = (query or "").lower()
+        want_tags = set(tags or [])
+        results = [
+            f for f in self._facts
+            if (not q or q in f.text.lower())
+            and (not want_tags or want_tags.intersection(f.tags))
+            and (type is None or f.type == type)
+            and PRIORITY_RANK.get(f.priority, 1) >= floor
+        ]
+        results.sort(
+            key=lambda f: (PRIORITY_RANK.get(f.priority, 1), f.timestamp or ""),
+            reverse=True,
+        )
+        return results[:limit] if limit is not None else results
+
+    def get_fact(self, id: str) -> Fact | None:
+        i = self._by_id.get(id)
+        return self._facts[i] if i is not None else None
+
+    def delete_fact(self, id: str) -> bool:
+        i = self._by_id.get(id)
+        if i is None:
+            return False
+        del self._facts[i]
+        self._by_id = {f.id: j for j, f in enumerate(self._facts) if f.id is not None}
+        return True

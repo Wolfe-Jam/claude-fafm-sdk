@@ -1,0 +1,46 @@
+[project]
+name = "claude-fafm-sdk"
+version = "0.1.0"
+description = "Portable, cross-vendor AI memory in .fafm — offline-first SDK; connect a free namepoint for full intel."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "James Wolfe", email = "team@faf.one" }]
+keywords = ["ai", "memory", "fafm", "agents", "claude", "portable", "cross-vendor"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[project.urls]
+Homepage = "https://memory.faf.one"
+Repository = "https://github.com/Wolfe-Jam/claude-fafm-sdk"
+"Format spec" = "https://github.com/Wolfe-Jam/faf"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["claude_fafm_sdk"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
