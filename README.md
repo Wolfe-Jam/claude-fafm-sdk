@@ -47,17 +47,24 @@ More in **[examples/](examples/)** — portability + a real cross-vendor roundtr
 ## Full intel (free namepoint)
 
 A **namepoint** is a free handle on [memory.faf.one](https://memory.faf.one)
-where your soul lives (hosted + sticky) and the full intel runs — **semantic /
-ranked recall** and **LLM smart-merge** — at personal scale.
+where your soul lives (hosted + sticky) and the full intel runs at personal scale.
+Hosted reads/writes use the family-standard MCP client (`fastmcp`), an opt-in extra:
+
+```sh
+uv add "claude-fafm-sdk[namepoint]"
+```
 
 ```python
 from claude_fafm_sdk import Namepoint
 
-np = Namepoint("@me")
-np.recall("what did I decide about installs?")   # semantic, server-side
+np = Namepoint("@me", api_key="...")        # free key from memory.faf.one
+await np.push("a durable fact", type="fact")
+body = await np.pull()                       # reads are public — no key
 ```
 
-*(The namepoint backend is coming. Local `Soul` ops work fully offline today.)*
+Wired to the MCPaaS asset core — the same backend grok-faf-voice uses
+(`get_soul` / `write_soul`). The `memory.faf.one` front door + free-namepoint
+signup are landing; the local `Soul` works fully offline today, no account.
 
 ## Why
 

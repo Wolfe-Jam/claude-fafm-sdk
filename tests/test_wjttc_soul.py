@@ -6,7 +6,9 @@ ENGINE-tier: the core local memory ops. BRAKE-tier: format + contract invariants
 
 import pytest
 
-from claude_fafm_sdk import Namepoint, NamepointUnavailable, Soul
+import asyncio
+
+from claude_fafm_sdk import Namepoint, NamepointAuthRequired, Soul
 
 
 def test_engine_etch_and_recall():
@@ -68,8 +70,10 @@ def test_brake_bare_string_facts_load(tmp_path):
     assert s.facts[0].text == "just a string"
 
 
-def test_brake_namepoint_offline_fails_loud_and_clear():
+def test_brake_namepoint_write_needs_a_key():
+    # No key → loud, clear refusal that points to the free signup. Reads (pull)
+    # need no key; only writes gate. (No network: the key check precedes any call.)
     np = Namepoint("@me")
-    with pytest.raises(NamepointUnavailable) as e:
-        np.recall("anything")
+    with pytest.raises(NamepointAuthRequired) as e:
+        asyncio.run(np.push("a fact"))
     assert "memory.faf.one" in str(e.value)

@@ -11,7 +11,12 @@ namepoint for the full intel (semantic recall, smart-merge) at personal scale.
     soul.recall("uv")
 """
 
-from .client import MEMORY_ENDPOINT, Namepoint, NamepointUnavailable
+from .client import (
+    MEMORY_ENDPOINT,
+    Namepoint,
+    NamepointAuthRequired,
+    NamepointUnavailable,
+)
 from .soul import PRIORITY_ORDER, Fact, Soul, canonical_priority
 
 __version__ = "0.1.0"
@@ -20,6 +25,7 @@ __all__ = [
     "Soul",
     "Fact",
     "Namepoint",
+    "NamepointAuthRequired",
     "NamepointUnavailable",
     "MEMORY_ENDPOINT",
     "PRIORITY_ORDER",

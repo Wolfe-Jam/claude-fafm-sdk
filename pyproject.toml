@@ -20,6 +20,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+namepoint = [
+    "fastmcp>=3.2",   # hosted reads/writes via MCPaaS — the family-standard MCP client
+]
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",
