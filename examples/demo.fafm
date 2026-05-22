@@ -1,0 +1,61 @@
+version: '1.1'
+profile: knowledge
+namepoint: '@claude-code:claude-fafm-sdk'
+created: '2026-05-22T03:30:00Z'
+last_etched: '2026-05-22T03:30:00Z'
+retention: forever
+memory:
+  facts:
+  - text: .fafm is the open, portable AI-memory format
+    id: what
+    type: project
+    priority: high
+    timestamp: '2026-05-22T03:30:00Z'
+  - text: souls move between Claude, Grok and GPT — no vendor lock-in
+    id: why
+    type: project
+    priority: high
+    timestamp: '2026-05-22T03:30:00Z'
+  - text: etch writes a fact; recall reads it back, ranked by priority then recency
+    id: ops
+    type: reference
+    priority: standard
+    timestamp: '2026-05-22T03:30:00Z'
+  - text: the SDK is offline-first — no account needed for the local soul
+    id: offline
+    type: reference
+    priority: standard
+    timestamp: '2026-05-22T03:30:00Z'
+  - text: a free namepoint adds the full intel (semantic recall, smart-merge)
+    id: namepoint
+    type: reference
+    priority: standard
+    timestamp: '2026-05-22T03:30:00Z'
+  - text: 'install leads with uv: `uvx claude-fafm-sdk init`'
+    id: install
+    type: reference
+    priority: standard
+    timestamp: '2026-05-22T03:30:00Z'
+  - text: one format, never a fork — fafm-engine and grok-faf-voice read the same soul
+    id: interop
+    type: project
+    priority: high
+    timestamp: '2026-05-22T03:30:00Z'
+  - text: a fact has text (required) plus optional id, type, priority, tags, links
+    id: schema
+    type: reference
+    priority: standard
+    timestamp: '2026-05-22T03:30:00Z'
+  - text: 'priority vocab: ephemeral, standard, high, critical'
+    id: priority
+    type: reference
+    priority: ephemeral
+    timestamp: '2026-05-22T03:30:00Z'
+  - text: etch by id is O(1) dedup — re-etching the same id updates in place
+    id: dedup
+    type: reference
+    priority: standard
+    timestamp: '2026-05-22T03:30:00Z'
+  sessions: []
+  preferences: {}
+  custom: {}

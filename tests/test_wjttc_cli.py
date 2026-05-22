@@ -34,6 +34,19 @@ def test_brake_init_fresh_soul_is_empty(tmp_path, monkeypatch):
     assert Soul.load(tmp_path / "soul.fafm").facts == []  # 0 facts — never claim otherwise
 
 
+def test_brake_demo_count_is_the_real_count(tmp_path, monkeypatch, capsys):
+    # The printed "N facts ready" must equal the soul's actual fact count — never
+    # a hardcoded placeholder (no "131" baked into a fresh/seeded init).
+    from claude_fafm_sdk.cli import DEMO_FACTS
+
+    monkeypatch.chdir(tmp_path)
+    main(["init", "--demo"])
+    out = capsys.readouterr().out
+    n = len(Soul.load(tmp_path / "soul.fafm").facts)
+    assert n == len(DEMO_FACTS)
+    assert f"{n} facts ready" in out
+
+
 def test_engine_cli_etch_then_recall(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     main(["init"])

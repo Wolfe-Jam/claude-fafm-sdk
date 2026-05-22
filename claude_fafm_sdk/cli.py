@@ -17,6 +17,21 @@ from .soul import Soul
 
 DEFAULT_FILE = "soul.fafm"
 
+# Curated, shippable demo facts (about .fafm itself — never personal memory).
+# `init --demo` seeds these; the count printed is always the real len(facts).
+DEMO_FACTS: list[tuple[str, str, str, str]] = [
+    (".fafm is the open, portable AI-memory format", "what", "project", "high"),
+    ("souls move between Claude, Grok and GPT — no vendor lock-in", "why", "project", "high"),
+    ("etch writes a fact; recall reads it back, ranked by priority then recency", "ops", "reference", "standard"),
+    ("the SDK is offline-first — no account needed for the local soul", "offline", "reference", "standard"),
+    ("a free namepoint adds the full intel (semantic recall, smart-merge)", "namepoint", "reference", "standard"),
+    ("install leads with uv: `uvx claude-fafm-sdk init`", "install", "reference", "standard"),
+    ("one format, never a fork — fafm-engine and grok-faf-voice read the same soul", "interop", "project", "high"),
+    ("a fact has text (required) plus optional id, type, priority, tags, links", "schema", "reference", "standard"),
+    ("priority vocab: ephemeral, standard, high, critical", "priority", "reference", "ephemeral"),
+    ("etch by id is O(1) dedup — re-etching the same id updates in place", "dedup", "reference", "standard"),
+]
+
 
 def _namepoint(name: str | None = None) -> str:
     return f"@claude-code:{name or Path.cwd().name}"
@@ -28,11 +43,20 @@ def cmd_init(args: argparse.Namespace) -> int:
         print(f"{path} already exists — use --force to overwrite.")
         return 1
     np = _namepoint(args.namepoint)
-    Soul(np).save(path)
+    soul = Soul(np)
+    if args.demo:
+        for text, fid, ftype, prio in DEMO_FACTS:
+            soul.etch(text, id=fid, type=ftype, priority=prio)
+    soul.save(path)
+    n = len(soul.facts)  # always the real count — never a placeholder
     print(f"🧬  Soul created — ./{path}")
     print(f"    namepoint  {np}")
-    print("    Portable .fafm — the open format grok-faf-voice + fafm-engine read.")
-    print(f'    Next:  claude-fafm-sdk etch "your first memory"')
+    if n:
+        print(f"    {n} facts ready — portable .fafm, the open format grok-faf-voice reads.")
+        print("    Try:  claude-fafm-sdk recall fafm")
+    else:
+        print("    Portable .fafm — the open format grok-faf-voice + fafm-engine read.")
+        print('    Next:  claude-fafm-sdk etch "your first memory"')
     return 0
 
 
@@ -67,6 +91,7 @@ def main(argv: list[str] | None = None) -> int:
     pi = sub.add_parser("init", help="create a local .fafm soul")
     pi.add_argument("-f", "--file", default=DEFAULT_FILE)
     pi.add_argument("-n", "--namepoint", default=None, help="override the namepoint handle")
+    pi.add_argument("--demo", action="store_true", help="seed a curated demo soul")
     pi.add_argument("--force", action="store_true", help="overwrite an existing soul")
     pi.set_defaults(func=cmd_init)
 
