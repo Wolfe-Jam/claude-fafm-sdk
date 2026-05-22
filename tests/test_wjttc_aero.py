@@ -4,9 +4,12 @@ The pieces working together (full soul lifecycle), cross-vendor format
 conformance (the soul we write IS the format others read), and version sync.
 """
 
+import asyncio
+import os
 import re
 from pathlib import Path
 
+import pytest
 import yaml
 
 import claude_fafm_sdk
@@ -41,3 +44,51 @@ def test_aero_version_sync():
     pyproject = (Path(__file__).resolve().parent.parent / "pyproject.toml").read_text()
     m = re.search(r'^version = "([^"]+)"', pyproject, re.MULTILINE)
     assert m and m.group(1) == claude_fafm_sdk.__version__
+
+
+def test_aero_namepoint_sends_flexi_header(monkeypatch):
+    # Regression guard: the namepoint transport MUST carry X-MCP-Mode: flexi —
+    # mcpaas-cf defaults to strict MCP and rejects stock fastmcp clients (400).
+    # This is the silent-drift the live e2e receipt caught. No network needed.
+    from claude_fafm_sdk import client as client_mod
+
+    captured: dict = {}
+
+    class FakeTransport:
+        def __init__(self, url, headers=None):
+            captured["url"], captured["headers"] = url, headers
+
+    class FakeResult:
+        content = [type("Block", (), {"text": "soul-body"})()]
+
+    class FakeClient:
+        def __init__(self, transport):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def call_tool(self, name, args):
+            captured["tool"], captured["args"] = name, args
+            return FakeResult()
+
+    monkeypatch.setattr(client_mod, "_client_classes", lambda: (FakeClient, FakeTransport))
+    body = asyncio.run(client_mod.Namepoint("grok").pull())
+
+    assert body == "soul-body"
+    assert captured["headers"] == {"X-MCP-Mode": "flexi"}
+    assert captured["tool"] == "get_soul"
+    assert captured["args"] == {"soul": "grok"}
+
+
+@pytest.mark.skipif(not os.environ.get("MCPAAS_LIVE"), reason="set MCPAAS_LIVE=1 to pull from live memory.faf.one")
+def test_aero_live_pull_memory_faf_one():
+    # Live end-to-end: the SDK Namepoint client pulls a public soul from the
+    # deployed memory.faf.one/mcp. Needs the [namepoint] extra + network.
+    from claude_fafm_sdk import Namepoint
+
+    body = asyncio.run(Namepoint("claude").pull())
+    assert body and "claude" in body.lower()

@@ -22,6 +22,11 @@ from typing import Any
 MEMORY_ENDPOINT = "https://memory.faf.one"
 _MCP_URL = f"{MEMORY_ENDPOINT}/mcp"
 
+# mcpaas-cf defaults to strict MCP (requires Mcp-Method + MCP-Protocol-Version
+# headers that stock fastmcp.Client doesn't send). X-MCP-Mode: flexi opts into
+# the server's co-existence mode — the canonical family pattern (grok-faf-voice).
+_MCPAAS_MODE_HEADER = {"X-MCP-Mode": "flexi"}
+
 
 class NamepointUnavailable(RuntimeError):
     """The namepoint backend (or its client deps) isn't reachable."""
@@ -67,7 +72,7 @@ class Namepoint:
     async def pull(self) -> str:
         """Fetch the hosted soul body (``get_soul``). Public — no key needed."""
         Client, Transport = _client_classes()
-        async with Client(Transport(url=self._mcp_url)) as client:
+        async with Client(Transport(url=self._mcp_url, headers=_MCPAAS_MODE_HEADER)) as client:
             return _first_text(await client.call_tool("get_soul", {"soul": self.handle}))
 
     async def push(self, text: str, *, type: str = "note", tags: list[str] | None = None) -> str:
@@ -81,7 +86,7 @@ class Namepoint:
         args: dict[str, Any] = {"soul": self.handle, "entry": text, "type": type, "token": self._api_key}
         if tags:
             args["tags"] = tags
-        async with Client(Transport(url=self._mcp_url)) as client:
+        async with Client(Transport(url=self._mcp_url, headers=_MCPAAS_MODE_HEADER)) as client:
             return _first_text(await client.call_tool("write_soul", args))
 
     async def recall(self, query: str, *, limit: int | None = None) -> list:
