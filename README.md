@@ -1,6 +1,6 @@
 # claude-fafm-sdk
 
-[![PyPI](https://img.shields.io/pypi/v/claude-fafm-sdk)](https://pypi.org/project/claude-fafm-sdk/) · [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE) · [memory.faf.one](https://memory.faf.one)
+[![PyPI](https://img.shields.io/pypi/v/claude-fafm-sdk)](https://pypi.org/project/claude-fafm-sdk/) · [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE) · [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20348942.svg)](https://doi.org/10.5281/zenodo.20348942) · [memory.faf.one](https://memory.faf.one)
 
 **Portable, cross-vendor AI memory in `.fafm`.** Give an AI agent memory that
 versions with your project and moves between models — instead of being locked to
