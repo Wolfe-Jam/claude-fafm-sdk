@@ -9,6 +9,10 @@ one vendor.
 Offline-first: the local `Soul` works with no account. Connect a free
 **namepoint** for the full intel (semantic recall, smart-merge) at personal scale.
 
+> **Two profiles, one `.fafm` format.** This is the **knowledge** profile (typed,
+> cross-linked agent memory). For the **voice** profile — the Voice Memory Layer —
+> see [grok-faf-voice](https://pypi.org/project/grok-faf-voice/).
+
 ## Install
 
 ```sh

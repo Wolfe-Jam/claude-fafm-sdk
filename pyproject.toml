@@ -32,6 +32,7 @@ dev = [
 Homepage = "https://memory.faf.one"
 Repository = "https://github.com/Wolfe-Jam/claude-fafm-sdk"
 "Format spec" = "https://github.com/Wolfe-Jam/faf"
+"Voice profile (grok-faf-voice)" = "https://pypi.org/project/grok-faf-voice/"
 
 [project.scripts]
 claude-fafm-sdk = "claude_fafm_sdk.cli:main"
