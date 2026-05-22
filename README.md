@@ -78,6 +78,28 @@ AI memory is vendor-locked. `.fafm` is the open, portable format — and this SD
 is the open, offline-first way to use it. Souls written here interop with the
 `fafm-engine` and `grok-faf-voice` implementations: one format, never a fork.
 
+## Citation
+
+If you use `claude-fafm-sdk` or the `.fafm` format in research or production, please cite the format paper:
+
+> Wolfe, J. (2026). *Permanent Memory and Instant Recall: The .fafm Standard for Multi-Profile AI Agent Memory*. Zenodo. https://doi.org/10.5281/zenodo.20348942
+
+### BibTeX
+
+```bibtex
+@article{wolfe2026fafm,
+  title     = {Permanent Memory and Instant Recall: The .fafm Standard for Multi-Profile AI Agent Memory},
+  author    = {Wolfe, James},
+  year      = {2026},
+  month     = {may},
+  publisher = {Zenodo},
+  doi       = {10.5281/zenodo.20348942},
+  url       = {https://doi.org/10.5281/zenodo.20348942}
+}
+```
+
+**DOI:** [`10.5281/zenodo.20348942`](https://doi.org/10.5281/zenodo.20348942)
+
 ## License
 
 MIT. The format is open ([spec](https://github.com/Wolfe-Jam/faf)); the SDK is
