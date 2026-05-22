@@ -10,6 +10,9 @@ venv/
 .pytest_cache/
 .ruff_cache/
 
+# uv lockfile — this is a library, don't pin the lockfile
+uv.lock
+
 # Personal souls — never commit someone's memory
 *.fafm
 !examples/*.fafm
