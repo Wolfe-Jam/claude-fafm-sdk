@@ -8,7 +8,7 @@ import pytest
 
 import asyncio
 
-from claude_fafm_sdk import Namepoint, NamepointAuthRequired, Soul
+from claude_fafm_sdk import Fact, Namepoint, NamepointAuthRequired, Soul
 
 
 def test_engine_etch_and_recall():
@@ -55,6 +55,28 @@ def test_engine_recall_recency_breaks_same_second_ties():
     assert [f.id for f in s.recall()] == ["c", "b", "a"]  # newest first
 
 
+def test_engine_to_yaml_roundtrip_preserves_ids(tmp_path):
+    # The .fafm-native namepoint stores the whole document — ids must survive a
+    # serialize → parse round-trip (this is what push/pull rely on).
+    s = Soul("@me")
+    s.etch("structured fact", id="a", type="project", priority="high")
+    text = s.to_yaml()
+    (tmp_path / "rt.fafm").write_text(text, encoding="utf-8")
+    back = Soul.load(tmp_path / "rt.fafm")
+    assert back.get_fact("a").text == "structured fact"
+    assert back.get_fact("a").priority == "high"
+
+
+def test_engine_add_preserves_timestamp_and_dedups_by_id():
+    # `add` is the merge primitive: keep the incoming fact verbatim (timestamp too),
+    # update-in-place by id.
+    s = Soul("@me")
+    s.add(Fact(text="v1", id="x", timestamp="2020-01-01T00:00:00Z"))
+    assert s.get_fact("x").timestamp == "2020-01-01T00:00:00Z"
+    s.add(Fact(text="v2", id="x", timestamp="2021-01-01T00:00:00Z"))
+    assert len(s.facts) == 1 and s.get_fact("x").text == "v2"
+
+
 def test_engine_delete_fact():
     s = Soul("@me")
     s.etch("temp", id="z")
@@ -88,4 +110,4 @@ def test_brake_namepoint_write_needs_a_key():
     np = Namepoint("@me")
     with pytest.raises(NamepointAuthRequired) as e:
         asyncio.run(np.push("a fact"))
-    assert "mcpaas.live/claim" in str(e.value)  # points to the live claim engine
+    assert "claim" in str(e.value)  # points to `namepoint claim`

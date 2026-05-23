@@ -107,108 +107,45 @@ def test_brake_forget_missing_id_fails_loud(tmp_path, monkeypatch, capsys):
     assert "no fact" in capsys.readouterr().out
 
 
-def test_engine_cli_init_cta_points_to_claim(tmp_path, monkeypatch, capsys):
-    # The onboarding gem: init nudges toward a free namepoint, honestly.
+def test_engine_cli_init_cta_nudges_zero_config(tmp_path, monkeypatch, capsys):
+    # The onboarding gem: init points at zero-config push + the keepers upgrade.
     monkeypatch.chdir(tmp_path)
     main(["init"])
     out = capsys.readouterr().out
-    assert "mcpaas.live/claim" in out
-    assert "namepoint link" in out
+    assert "namepoint push" in out          # A: just push, auto-provisions
+    assert "claim --email" in out           # B: keep it forever
 
 
-def test_engine_cli_namepoint_link_sets_handle(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
+def test_engine_cli_namepoint_status_none(tmp_path, monkeypatch, capsys):
+    # No network, no fakes: a fresh machine has no identity → honest "not yet".
+    import claude_fafm_sdk.identity as idmod
+    monkeypatch.setattr(idmod, "IDENTITY_PATH", tmp_path / "identity.json")
     monkeypatch.delenv("MCPAAS_API_KEY", raising=False)
-    main(["init"])
-    assert main(["namepoint", "link", "claude-fafm-sdk"]) == 0
-    assert Soul.load(tmp_path / "soul.fafm").namepoint == "claude-fafm-sdk"
-
-
-def test_brake_namepoint_link_is_honest_not_live(tmp_path, monkeypatch, capsys):
-    # link writes LOCAL metadata only — it must NOT claim the soul is live/hosted
-    # (nothing is uploaded until `namepoint push`). Honest-by-design.
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("MCPAAS_API_KEY", raising=False)
-    main(["init"])
-    capsys.readouterr()
-    main(["namepoint", "link", "you99"])
-    out = capsys.readouterr().out.lower()
-    assert "is live" not in out and "now live" not in out and "readable by grok" not in out
-    assert "namepoint push" in out          # tells you how to actually go live
-    assert "mcpaas_api_key" in out          # no key set → points to the token
-
-
-def test_brake_namepoint_link_missing_soul_fails(tmp_path, monkeypatch, capsys):
-    monkeypatch.chdir(tmp_path)
-    assert main(["namepoint", "link", "you99"]) == 1
-    assert "not found" in capsys.readouterr().out
-
-
-def test_brake_cli_namepoint_push_needs_key(tmp_path, monkeypatch, capsys):
-    # Guard, no network: a write with no token stops BEFORE the wire, pointing at
-    # the token you get on claim. (Local check — doesn't touch the namepoint.)
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("MCPAAS_API_KEY", raising=False)
-    main(["init"])
-    main(["namepoint", "link", "you99"])
-    capsys.readouterr()
-    assert main(["namepoint", "push"]) == 1
-    assert "MCPAAS_API_KEY" in capsys.readouterr().out
-
-
-def test_brake_cli_namepoint_push_needs_linked_handle(tmp_path, monkeypatch, capsys):
-    # Guard, no network: refuses the unlinked @claude-code: placeholder.
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("MCPAAS_API_KEY", "tok")
-    main(["init"])
-    capsys.readouterr()
-    assert main(["namepoint", "push"]) == 1
-    assert "mcpaas.live/claim" in capsys.readouterr().out
-
-
-def test_brake_cli_namepoint_sync_needs_key(tmp_path, monkeypatch, capsys):
-    # Guard, no network: sync writes, so no token → stops before the wire.
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("MCPAAS_API_KEY", raising=False)
-    main(["init"])
-    main(["namepoint", "link", "you99"])
-    capsys.readouterr()
-    assert main(["namepoint", "sync"]) == 1
-    assert "MCPAAS_API_KEY" in capsys.readouterr().out
-
-
-def test_brake_cli_namepoint_sync_needs_linked_handle(tmp_path, monkeypatch, capsys):
-    # Guard, no network: refuses the unlinked @claude-code: placeholder.
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("MCPAAS_API_KEY", "tok")
-    main(["init"])
-    capsys.readouterr()
-    assert main(["namepoint", "sync"]) == 1
-    assert "link" in capsys.readouterr().out.lower()
+    monkeypatch.delenv("FAF_SOUL", raising=False)
+    assert main(["namepoint", "status"]) == 0
+    out = capsys.readouterr().out
+    assert "no namepoint yet" in out and "claim --email" in out
 
 
 @pytest.mark.skipif(
-    not (os.environ.get("MCPAAS_API_KEY") and os.environ.get("CFS_TEST_NAMEPOINT")),
-    reason="set MCPAAS_API_KEY + CFS_TEST_NAMEPOINT for the live TYRE push/pull/sync roundtrip",
+    not (os.environ.get("MCPAAS_API_KEY") and os.environ.get("FAF_SOUL")),
+    reason="set MCPAAS_API_KEY + FAF_SOUL for the live TYRE push/pull/sync roundtrip",
 )
-def test_tyre_live_push_pull_roundtrip(tmp_path, monkeypatch):
-    # TYRE (the live TEST tier — distinct from PIT/eval) — the real loop against a
-    # live namepoint, no fakes. Idempotent: the marker text is stable, so
-    # client-side dedup keeps re-runs from duplicating.
-    handle = os.environ["CFS_TEST_NAMEPOINT"]
+def test_tyre_live_push_pull_sync_roundtrip(tmp_path, monkeypatch):
+    # TYRE (the live TEST tier) — the real loop against a live namepoint, no fakes.
+    # Uses the env identity (MCPAAS_API_KEY + FAF_SOUL). Idempotent: the marker text
+    # is stable, so client-side dedup keeps re-runs from duplicating.
+    handle = os.environ["FAF_SOUL"]
     marker = f"tyre roundtrip marker — {handle}"
     monkeypatch.chdir(tmp_path)
     main(["init"])
-    main(["namepoint", "link", handle])
     main(["etch", marker, "--id", "tyre"])
-    assert main(["namepoint", "push"]) == 0
+    assert main(["namepoint", "push"]) == 0          # uploads (auto-dedup)
 
     # Fresh local soul → pull from the live namepoint → the marker comes back.
     main(["init", "--force"])
-    main(["namepoint", "link", handle])
     assert main(["namepoint", "pull"]) == 0
-    texts = [f.text for f in Soul.load(tmp_path / "soul.fafm").facts]
-    assert marker in texts
+    assert marker in [f.text for f in Soul.load(tmp_path / "soul.fafm").facts]
 
     # sync converges + is idempotent (both sides already hold the marker).
     assert main(["namepoint", "sync"]) == 0

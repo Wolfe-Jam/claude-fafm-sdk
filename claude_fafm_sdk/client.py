@@ -16,8 +16,20 @@ you want hosted reads/writes.
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any
+
+# In flexi mode the server doesn't advertise tools via tools/list, so the MCP
+# client logs a benign "Tool … not listed by server" warning on every call even
+# though the call succeeds. Drop just that message (the mcp client logs under the
+# logger named "client") so the CLI output stays clean — nothing else is touched.
+class _DropFlexiToolWarning(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "not listed by server" not in record.getMessage()
+
+
+logging.getLogger("client").addFilter(_DropFlexiToolWarning())
 
 MEMORY_ENDPOINT = "https://memory.faf.one"
 _MCP_URL = f"{MEMORY_ENDPOINT}/mcp"
@@ -79,9 +91,9 @@ class Namepoint:
         """Write an entry to the hosted soul (``write_soul``). Needs a key."""
         if not self._api_key:
             raise NamepointAuthRequired(
-                "writing to a namepoint needs your key — claim a free handle "
-                "(a two-digit number, e.g. @james99) at https://mcpaas.live/claim "
-                "(or set MCPAAS_API_KEY). Reads (pull) need no key."
+                "writing to a namepoint needs a key — get one with "
+                "`claude-fafm-sdk namepoint claim` (or "
+                "claude_fafm_sdk.identity.provision_anonymous). Reads (pull) need no key."
             )
         Client, Transport = _client_classes()
         args: dict[str, Any] = {"soul": self.handle, "entry": text, "type": type, "token": self._api_key}
@@ -104,8 +116,35 @@ class Namepoint:
 
         body = await self.pull()
         yaml_body = body.split("\n---\n", 1)[-1]
-        doc = yaml.safe_load(StringIO(yaml_body)) or {}
+        # A hosted soul may be a markdown doc (the MCPaaS seed/voice format), not
+        # `.fafm` YAML — don't crash on it; it just carries no structured facts.
+        try:
+            doc = yaml.safe_load(StringIO(yaml_body))
+        except yaml.YAMLError:
+            return []
+        if not isinstance(doc, dict):
+            return []
         return [Fact.from_obj(f) for f in ((doc.get("memory") or {}).get("facts") or [])]
+
+    async def replace(self, content: str) -> str:
+        """Replace the ENTIRE hosted soul with ``content`` (``write_soul`` replace
+        mode). The `.fafm`-native write: the namepoint holds the whole document, so
+        ids + structure survive and re-pushes are idempotent. Needs a key."""
+        if not self._api_key:
+            raise NamepointAuthRequired(
+                "writing to a namepoint needs a key — get one with "
+                "`claude-fafm-sdk namepoint claim` (or "
+                "claude_fafm_sdk.identity.provision_anonymous). Reads (pull) need no key."
+            )
+        Client, Transport = _client_classes()
+        args: dict[str, Any] = {
+            "soul": self.handle,
+            "replace": True,
+            "content": content,
+            "token": self._api_key,
+        }
+        async with Client(Transport(url=self._mcp_url, headers=_MCPAAS_MODE_HEADER)) as client:
+            return _first_text(await client.call_tool("write_soul", args))
 
     async def recall(self, query: str, *, limit: int | None = None) -> list:
         """Recall from the hosted soul.

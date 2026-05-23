@@ -55,30 +55,44 @@ That's the whole offline loop — no account, no server.
 More in **[examples/](examples/)** — portability + a real cross-vendor roundtrip
 (SDK writes `.fafm`, grok-faf-voice reads it back).
 
-## Full intel (free namepoint)
+## Go cross-vendor (a namepoint)
 
-A **namepoint** is your handle on [memory.faf.one](https://memory.faf.one) where
-your soul lives (hosted + sticky) and the full intel runs at personal scale.
-**A two-digit number makes a handle free** — `@james99` and `@john10` are free
-(10 is the lowest; `@john9` isn't). Clean prestige names (no number) are the paid
-tier. Claim one at [mcpaas.live/claim](https://mcpaas.live/claim).
-
-Hosted reads/writes use the family-standard MCP client (`fastmcp`), an opt-in extra:
+A **namepoint** is your soul's live address — `mcpaas.live/<handle>` — readable by
+Grok and any model. **Zero-config:** just push. With no setup, the first push
+auto-provisions an anonymous namepoint and saves it locally — no claim page, no key
+to copy.
 
 ```sh
-uv add "claude-fafm-sdk[namepoint]"
+uv add "claude-fafm-sdk[namepoint]"      # hosted ops use the family MCP client
+claude-fafm-sdk namepoint push           # → live at mcpaas.live/anon… (auto-provisioned)
+claude-fafm-sdk namepoint pull           # merge your hosted soul back (public read)
+claude-fafm-sdk namepoint sync           # reconcile both ways
 ```
+
+**A-for-first-touch, B-for-keepers.** The anonymous namepoint is *session-like* —
+lose this machine and it orphans (a reminder of the statelessness memory cures).
+Make it permanent + recoverable:
+
+```sh
+claude-fafm-sdk namepoint claim --email you@example.com   # a named, recoverable namepoint
+claude-fafm-sdk namepoint status                           # what you've got
+```
+
+The whole `.fafm` document is stored at the namepoint, so ids, types, and
+priorities survive the round-trip — structured memory, not prose. Reads are public
+(no key); writes use the key auto-provisioning hands you. The local `Soul` still
+works fully offline, no account.
+
+Programmatic access mirrors the CLI:
 
 ```python
-from claude_fafm_sdk import Namepoint
+from claude_fafm_sdk import Namepoint, Soul, provision_anonymous
 
-np = Namepoint("@james99", api_key="...")    # free handle + key from mcpaas.live/claim
-await np.push("a durable fact", type="fact")
-body = await np.pull()                         # reads are public — no key
+soul = Soul.load("soul.fafm")
+ident = provision_anonymous()                       # {namepoint, key}, zero-config
+await Namepoint(ident.namepoint, api_key=ident.api_key).replace(soul.to_yaml())
+body = await Namepoint(ident.namepoint).pull()      # reads are public — no key
 ```
-
-Wired to the MCPaaS asset core — the same backend grok-faf-voice uses
-(`get_soul` / `write_soul`). The local `Soul` works fully offline today, no account.
 
 ## Why
 

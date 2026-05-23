@@ -40,7 +40,7 @@ recorded pass-through: *"step considered, N/A at this stage → pass."*
 - **No-guess:** a bare `.fafm` loads (interop); the `Namepoint` client fails loud +
   clear when offline (`tests/test_wjttc_soul.py`)
 - **Honesty:** `init` never fakes a fact count (printed == real, fresh soul empty);
-  `namepoint link` never claims a soul is "live" before a real push
+  `namepoint status` is truthful when there's no identity yet
   (`tests/test_wjttc_cli.py`)
 
 ## ⚙️ 2 · ENGINE — correctness
@@ -48,7 +48,8 @@ recorded pass-through: *"step considered, N/A at this stage → pass."*
 - `Soul`: etch (O(1) id-dedup) · deterministic recall (priority + recency, with the
   same-second tiebreak) · save/load roundtrip · get/delete (`tests/test_wjttc_soul.py`)
 - CLI: `init` / `etch` / `recall` (+ `--tag/--type/--priority`) / `ls` / `forget`
-  / `namepoint link` (`tests/test_wjttc_cli.py`)
+  / `namepoint claim` / `status` (`tests/test_wjttc_cli.py`); identity store
+  (`tests/test_wjttc_identity.py`)
 
 ## 🌀 3 · AERO — integration + polish
 
@@ -61,13 +62,13 @@ recorded pass-through: *"step considered, N/A at this stage → pass."*
 ## 🛞 4 · TYRE — live test (costs creds)
 
 Real `namepoint push`/`pull`/`sync` roundtrip against a live namepoint — **no
-fakes**. Gated on `MCPAAS_API_KEY` + `CFS_TEST_NAMEPOINT`; skips cleanly without
-them (`tests/test_wjttc_cli.py::test_tyre_live_push_pull_roundtrip`). Idempotent —
+fakes**. Gated on `MCPAAS_API_KEY` + `FAF_SOUL`; skips cleanly without
+them (`tests/test_wjttc_cli.py::test_tyre_live_push_pull_sync_roundtrip`). Idempotent —
 the marker text is stable, so client-side dedup keeps re-runs from duplicating, and
 a converged `sync` reports no changes.
 
 ```sh
-MCPAAS_API_KEY=... CFS_TEST_NAMEPOINT=you99 uv run pytest -k tyre
+MCPAAS_API_KEY=... FAF_SOUL=you99 uv run pytest -k tyre
 ```
 
 > **Was pass-through until v0.2.x.** Filled in once `push`/`pull` shipped — the
@@ -85,7 +86,7 @@ pass-through, not omitted. Fills in as the paid-intel / scale features arrive.
 ```sh
 uv run pytest                       # steps 1–3 (+ 4–5 if their creds/data are set)
 faf wjttc                           # tier-balance audit
-MCPAAS_API_KEY=... CFS_TEST_NAMEPOINT=you99 uv run pytest -k tyre   # step 4 (live)
+MCPAAS_API_KEY=... FAF_SOUL=you99 uv run pytest -k tyre   # step 4 (live)
 ```
 
 **5-step status:** 🛡️ BRAKE ✅ · ⚙️ ENGINE ✅ · 🌀 AERO ✅ · 🛞 TYRE ✅ (gated) ·

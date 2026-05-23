@@ -157,14 +157,28 @@ class Soul:
             },
         }
 
+    def to_yaml(self) -> str:
+        """Serialize to the ``.fafm`` (vnd.fafm+yaml) document text."""
+        return yaml.safe_dump(self.to_doc(), sort_keys=False, allow_unicode=True, width=100)
+
     def save(self, path: str | Path) -> Path:
         """Write the soul to disk as ``.fafm`` (vnd.fafm+yaml)."""
         p = Path(path)
-        p.write_text(
-            yaml.safe_dump(self.to_doc(), sort_keys=False, allow_unicode=True, width=100),
-            encoding="utf-8",
-        )
+        p.write_text(self.to_yaml(), encoding="utf-8")
         return p
+
+    def add(self, fact: Fact) -> Fact:
+        """Insert or update a ``Fact`` by id, preserving its fields (incl. its
+        original timestamp) — the merge primitive. ``etch`` builds on this."""
+        if fact.id is not None and fact.id in self._by_id:
+            self._facts[self._by_id[fact.id]] = fact
+        else:
+            self._facts.append(fact)
+            if fact.id is not None:
+                self._by_id[fact.id] = len(self._facts) - 1
+        if fact.timestamp and fact.timestamp > (self.last_etched or ""):
+            self.last_etched = fact.timestamp
+        return fact
 
     def etch(
         self,
@@ -179,24 +193,18 @@ class Soul:
     ) -> Fact:
         """Write a fact. If ``id`` matches an existing fact it's updated in place
         (O(1) dedup); otherwise appended."""
-        fact = Fact(
-            text=text,
-            id=id,
-            type=type,
-            priority=canonical_priority(priority),
-            tags=list(tags or []),
-            links=list(links or []),
-            timestamp=_utcnow(),
-            source=source,
+        return self.add(
+            Fact(
+                text=text,
+                id=id,
+                type=type,
+                priority=canonical_priority(priority),
+                tags=list(tags or []),
+                links=list(links or []),
+                timestamp=_utcnow(),
+                source=source,
+            )
         )
-        if id is not None and id in self._by_id:
-            self._facts[self._by_id[id]] = fact
-        else:
-            self._facts.append(fact)
-            if id is not None:
-                self._by_id[id] = len(self._facts) - 1
-        self.last_etched = fact.timestamp or _utcnow()
-        return fact
 
     def recall(
         self,

@@ -17,6 +17,13 @@ from .client import (
     NamepointAuthRequired,
     NamepointUnavailable,
 )
+from .identity import (
+    Identity,
+    IdentityError,
+    claim_email,
+    load_identity,
+    provision_anonymous,
+)
 from .soul import PRIORITY_ORDER, Fact, Soul, canonical_priority
 
 __version__ = "0.2.0"
@@ -28,6 +35,11 @@ __all__ = [
     "NamepointAuthRequired",
     "NamepointUnavailable",
     "MEMORY_ENDPOINT",
+    "Identity",
+    "IdentityError",
+    "provision_anonymous",
+    "claim_email",
+    "load_identity",
     "PRIORITY_ORDER",
     "canonical_priority",
     "__version__",

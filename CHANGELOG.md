@@ -6,20 +6,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow 
 ## [Unreleased]
 
 ### Added
-- **The STICK loop — `namepoint` command group** (local soul ↔ hosted namepoint):
-  - `namepoint link <handle>` — link a claimed handle to the local soul (local
-    metadata; stays honest — no "live" claim until a real push).
-  - `namepoint push` — upload local facts; dedups client-side by text against the
-    current hosted state (the wire is append-only with no server dedup), so re-runs
-    are idempotent. Needs `MCPAAS_API_KEY`.
-  - `namepoint pull` — merge hosted facts into the local soul; keyless (reads are
-    public); dedup by text.
-  - `namepoint sync` — reconcile both ways (union by text: pull hosted-only down,
-    push local-only up). Client-side set-difference, not smart-merge (merge is the
-    paid intel). Needs `MCPAAS_API_KEY`.
-- `init` now prints a cross-vendor CTA → claim a free two-digit handle at
-  mcpaas.live/claim, then `namepoint link`.
-- WJTTC: live **TYRE** roundtrip test (gated on `MCPAAS_API_KEY` + `CFS_TEST_NAMEPOINT`).
+- **Zero-config namepoints — the `.fafm`-native hosted loop.** A namepoint is your
+  soul's live address (`mcpaas.live/<handle>`), readable by any model.
+  - `namepoint push` — **A-for-first-touch:** with no setup, auto-provisions an
+    anonymous namepoint + key (saved to `~/.claude-fafm-sdk/identity.json`) and
+    uploads. Stores the **whole `.fafm` document** (replace), so ids/types/priorities
+    survive the round-trip and re-pushes are idempotent.
+  - `namepoint pull` — merge the hosted soul into the local one (by id); public read,
+    no key.
+  - `namepoint sync` — reconcile both ways (merge by id, then write the union back);
+    idempotent.
+  - `namepoint claim [--email …]` — **B-for-keepers:** `--email` provisions a named,
+    recoverable namepoint; bare `claim` mints an anonymous one.
+  - `namepoint status` — show the current identity (anonymous vs recoverable).
+- `claude_fafm_sdk.identity` — `Identity`, `provision_anonymous`, `claim_email`,
+  `load_identity` (the resolution chain: explicit → env → `identity.json` → provision).
+- `Soul.to_yaml()` and `Soul.add(fact)` (id-preserving merge primitive).
+- WJTTC: live **TYRE** push/pull/sync roundtrip (gated on `MCPAAS_API_KEY` + `FAF_SOUL`).
+
+### Changed
+- Onboarding is zero-config: `init`'s CTA points at `namepoint push` (auto-provisions),
+  with `claim --email` to keep it. The soul's namepoint is stored *as* a `.fafm`
+  document (the format is the carrier) — `.faf`/markdown souls interoperate on read.
+
+### Removed
+- `namepoint link` — superseded by zero-config provisioning + `claim` (the SDK no
+  longer routes users to a manual web claim + token copy).
 
 ## [0.2.0] — 2026-05-22
 

@@ -9,11 +9,11 @@ yet. The magic is real; we don't fake it.
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
 from . import __version__
+from .identity import Identity
 from .soul import Soul
 
 DEFAULT_FILE = "soul.fafm"
@@ -66,8 +66,9 @@ def cmd_init(args: argparse.Namespace) -> int:
     else:
         print("    Portable .fafm — the open format grok-faf-voice + fafm-engine read.")
         print('    Next:  claude-fafm-sdk etch "your first memory"')
-    print("    Cross-vendor → claim a free handle (a two-digit number, e.g. you99)")
-    print("      at https://mcpaas.live/claim, then:  claude-fafm-sdk namepoint link <handle>")
+    print("    Go cross-vendor → just push (a namepoint auto-provisions, zero-config):")
+    print("      claude-fafm-sdk namepoint push        # live + readable by Grok")
+    print("    Keep it forever:  claude-fafm-sdk namepoint claim --email you@example.com")
     return 0
 
 
@@ -128,44 +129,119 @@ def cmd_forget(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_namepoint_link(args: argparse.Namespace) -> int:
-    """Link this local soul to a claimed namepoint handle. Local metadata only —
-    nothing is uploaded here (that's `namepoint push`). Stays honest: no "live"
-    claim until a push actually puts it there."""
+def _record_home(soul: Soul, path: Path, namepoint: str) -> None:
+    """Stamp the soul file with the namepoint it lives at (cosmetic label)."""
+    if soul.namepoint != namepoint:
+        soul.namepoint = namepoint
+        soul.save(path)
+
+
+def _identity_for_write() -> tuple[Identity, bool]:
+    """(identity, freshly_provisioned). A-for-first-touch: if there's no identity,
+    auto-provision an ANONYMOUS one (zero-config) so writes just work."""
+    from . import identity as idmod
+
+    ident = idmod.resolve()
+    if ident is not None:
+        return ident, False
+    ident = idmod.provision_anonymous()
+    idmod.save_identity(ident)
+    return ident, True
+
+
+def _print_anon_reminder(ident: Identity) -> None:
+    print(f"✨  No namepoint yet — provisioned an anonymous one (zero-config): {ident.url}")
+    print("    ⚠️  It's session-like — lose this machine and the handle is gone (that's")
+    print("        statelessness, the thing memory fixes). Make it permanent + recoverable:")
+    print("          claude-fafm-sdk namepoint claim --email you@example.com")
+
+
+def _read_handle(soul: Soul, args: argparse.Namespace) -> str | None:
+    """Namepoint to READ from: --handle → saved identity → soul label (if real)."""
+    from . import identity as idmod
+
+    if getattr(args, "handle", None):
+        return args.handle
+    ident = idmod.resolve()
+    if ident is not None:
+        return ident.namepoint
+    if soul.namepoint and not soul.namepoint.startswith("@claude-code:"):
+        return soul.namepoint
+    return None
+
+
+def cmd_namepoint_claim(args: argparse.Namespace) -> int:
+    """Get a namepoint identity. `--email` → a recoverable, named namepoint (B,
+    keepers); no flag → an anonymous one (A, session-like). Saves it locally so
+    push/pull/sync just work."""
+    from . import identity as idmod
+
     path = Path(args.file)
-    if not path.exists():
-        print(f"{path} not found — run: claude-fafm-sdk init")
+    soul = Soul.load(path) if path.exists() else None
+    try:
+        ident = idmod.claim_email(args.email) if args.email else idmod.provision_anonymous()
+    except idmod.IdentityError as e:
+        print(str(e))
         return 1
-    soul = Soul.load(path)
-    soul.namepoint = args.handle
-    soul.save(path)
-    has_key = bool(os.environ.get("MCPAAS_API_KEY"))
-    print(f"🔗  Linked ./{path} → {args.handle}")
-    print("    Push it so Grok (and any model) can read your soul:")
-    if has_key:
-        print("      claude-fafm-sdk namepoint push")
+    idmod.save_identity(ident)
+    if soul is not None:
+        _record_home(soul, path, ident.namepoint)
+    if ident.recoverable:
+        print(f"✅  namepoint: {ident.namepoint}  (recoverable) — {ident.url}")
+        print("    key saved locally + emailed as backup. push when ready:  claude-fafm-sdk namepoint push")
     else:
-        print("      export MCPAAS_API_KEY=...   # token emailed when you claimed at mcpaas.live/claim")
-        print("      claude-fafm-sdk namepoint push")
+        print(f"✅  namepoint: {ident.namepoint}  (anonymous, session-like) — {ident.url}")
+        print("    make it permanent:  claude-fafm-sdk namepoint claim --email you@example.com")
     return 0
 
 
-def _resolve_handle(soul: Soul, args: argparse.Namespace) -> str | None:
-    """The wire soul name: explicit --handle wins, else the linked soul.namepoint.
-    A freshly init'd soul still carries the local `@claude-code:...` placeholder —
-    that's not a claimed handle, so we refuse it and point at `namepoint link`."""
-    handle = getattr(args, "handle", None) or soul.namepoint
-    if not handle or handle.startswith("@claude-code:"):
-        return None
-    return handle
+def cmd_namepoint_status(args: argparse.Namespace) -> int:
+    """Show the current namepoint identity (if any)."""
+    from . import identity as idmod
+
+    try:
+        ident = idmod.load_identity()
+    except idmod.IdentityError as e:
+        print(str(e))
+        return 1
+    if ident is None:
+        print("no namepoint yet — it auto-provisions on your first push, or claim one now:")
+        print("  claude-fafm-sdk namepoint claim --email you@example.com   (recoverable)")
+        return 0
+    kind = "recoverable (email)" if ident.recoverable else "anonymous (session-like — claim --email to keep)"
+    print(f"namepoint:  {ident.namepoint}")
+    print(f"url:        {ident.url}")
+    print(f"identity:   {kind}")
+    return 0
+
+
+def _merge_into(soul: Soul, incoming: list) -> int:
+    """Add facts the local soul lacks — matched by id, else by text — preserving
+    each fact's fields (incl. timestamp). Additive: a local id is never overwritten
+    (your edits win). Returns the count added. (Set/recency reconcile, not semantic
+    merge — that's the paid intel.)"""
+    texts = {f.text for f in soul.facts}
+    added = 0
+    for f in incoming:
+        if f.id is not None:
+            if soul.get_fact(f.id) is None:
+                soul.add(f)
+                added += 1
+        elif f.text not in texts:
+            soul.add(f)
+            texts.add(f.text)
+            added += 1
+    return added
 
 
 def cmd_namepoint_push(args: argparse.Namespace) -> int:
-    """Upload local facts to the hosted namepoint. Append-only wire + no server
-    dedup, so we dedup CLIENT-SIDE by text (pull current, push only what's new) —
-    re-running stays idempotent. (Set-difference, not smart-merge; merge is paid.)"""
+    """Upload the local soul to the namepoint. The `.fafm`-native write: replace the
+    whole hosted document with our `.fafm` (ids + structure intact, idempotent).
+    A-for-first-touch: auto-provisions an anonymous identity if none exists. Push
+    overwrites the hosted copy — use `sync` to merge instead."""
     import asyncio
 
+    from . import identity as idmod
     from .client import Namepoint, NamepointAuthRequired, NamepointUnavailable
 
     path = Path(args.file)
@@ -173,45 +249,34 @@ def cmd_namepoint_push(args: argparse.Namespace) -> int:
         print(f"{path} not found — run: claude-fafm-sdk init")
         return 1
     soul = Soul.load(path)
-    handle = _resolve_handle(soul, args)
-    if handle is None:
-        print("no namepoint linked — claim a free handle at https://mcpaas.live/claim, then:")
-        print("  claude-fafm-sdk namepoint link <handle>   (or pass --handle)")
-        return 1
-    key = os.environ.get("MCPAAS_API_KEY")
-    if not key:
-        print("writing needs your token (emailed when you claimed at mcpaas.live/claim):")
-        print("  export MCPAAS_API_KEY=...")
+    try:
+        ident, fresh = _identity_for_write()
+    except idmod.IdentityError as e:
+        print(str(e))
         return 1
 
-    async def run() -> tuple[int, int]:
-        np = Namepoint(handle, api_key=key)
-        hosted = {f.text for f in await np.facts()}  # dedup by text (id is lost on the wire)
-        new = [f for f in soul.facts if f.text not in hosted]
-        for f in new:
-            await np.push(f.text, type=f.type or "note", tags=f.tags or None)
-        return len(new), len(hosted)
+    async def run() -> None:
+        np = Namepoint(ident.namepoint, api_key=ident.api_key)
+        await np.replace(soul.to_yaml())  # full-document replace — the .fafm IS the soul
 
     try:
-        pushed, already = asyncio.run(run())
-    except NamepointUnavailable as e:
+        asyncio.run(run())
+    except (NamepointUnavailable, NamepointAuthRequired) as e:
         print(str(e))
         return 1
-    except NamepointAuthRequired as e:
-        print(str(e))
-        return 1
-    if pushed:
-        print(f"⬆️  pushed {pushed} fact{'s' if pushed != 1 else ''} → {handle}  ({already} already there)")
-        print(f"    live + readable by Grok and any model:  https://mcpaas.live/{handle}")
-    else:
-        print(f"already in sync — {already} fact{'s' if already != 1 else ''} on https://mcpaas.live/{handle}")
+    _record_home(soul, path, ident.namepoint)
+    if fresh:
+        _print_anon_reminder(ident)
+    n = len(soul.facts)
+    print(f"⬆️  pushed your soul ({n} fact{'s' if n != 1 else ''}) → {ident.url}")
+    print("    live + readable by Grok and any model.")
     return 0
 
 
 def cmd_namepoint_pull(args: argparse.Namespace) -> int:
-    """Merge hosted facts into the local soul. Reads are public (no key). Dedup by
-    text so re-pulling doesn't duplicate; hosted facts arrive id-less (the wire
-    drops ids) and are added as new local facts."""
+    """Merge hosted facts into the local soul (additive, by id). Reads are public —
+    no key. If the hosted soul is a `.fafm` document, facts come back structured
+    (ids intact); a markdown/voice soul simply yields no structured facts."""
     import asyncio
 
     from .client import Namepoint, NamepointUnavailable
@@ -221,9 +286,9 @@ def cmd_namepoint_pull(args: argparse.Namespace) -> int:
     if soul is None:
         print(f"{path} not found — run: claude-fafm-sdk init")
         return 1
-    handle = _resolve_handle(soul, args)
+    handle = _read_handle(soul, args)
     if handle is None:
-        print("no namepoint linked — link one first:  claude-fafm-sdk namepoint link <handle>")
+        print("no namepoint yet — claim or push first, or pass --handle <name>")
         return 1
 
     async def run() -> list:
@@ -234,24 +299,20 @@ def cmd_namepoint_pull(args: argparse.Namespace) -> int:
     except NamepointUnavailable as e:
         print(str(e))
         return 1
-    local_texts = {f.text for f in soul.facts}
-    added = [f for f in hosted if f.text not in local_texts]
-    for f in added:
-        soul.etch(f.text, type=f.type, tags=f.tags or None)
+    added = _merge_into(soul, hosted)
     soul.save(path)
-    print(f"⬇️  pulled {len(added)} new fact{'s' if len(added) != 1 else ''} from {handle} "
+    print(f"⬇️  pulled {added} new fact{'s' if added != 1 else ''} from {handle} "
           f"→ ./{path}  ({len(soul.facts)} total)")
     return 0
 
 
 def cmd_namepoint_sync(args: argparse.Namespace) -> int:
-    """Reconcile local <-> hosted: union by text — pull hosted-only facts down,
-    push local-only facts up. Client-side set-difference, NOT smart-merge (merge is
-    the paid intel). The wire is append-only with no id, so dedup is by text and
-    edited text accumulates both versions hosted — true merge is server-side. Needs
-    MCPAAS_API_KEY (it writes); use `pull` for a read-only merge."""
+    """Reconcile local <-> hosted: merge hosted facts into the local soul (by id),
+    then replace the hosted document with the union. `.fafm`-native + idempotent.
+    A-for-first-touch: auto-provisions an anonymous identity if none."""
     import asyncio
 
+    from . import identity as idmod
     from .client import Namepoint, NamepointAuthRequired, NamepointUnavailable
 
     path = Path(args.file)
@@ -259,41 +320,30 @@ def cmd_namepoint_sync(args: argparse.Namespace) -> int:
         print(f"{path} not found — run: claude-fafm-sdk init")
         return 1
     soul = Soul.load(path)
-    handle = _resolve_handle(soul, args)
-    if handle is None:
-        print("no namepoint linked — link one first:  claude-fafm-sdk namepoint link <handle>")
-        return 1
-    key = os.environ.get("MCPAAS_API_KEY")
-    if not key:
-        print("sync writes too — needs your token (emailed when you claimed at mcpaas.live/claim):")
-        print("  export MCPAAS_API_KEY=...   (or use `namepoint pull` for a read-only merge)")
+    try:
+        ident, fresh = _identity_for_write()
+    except idmod.IdentityError as e:
+        print(str(e))
         return 1
 
-    async def run() -> tuple[int, int]:
-        np = Namepoint(handle, api_key=key)
-        hosted = await np.facts()
-        hosted_texts = {f.text for f in hosted}
-        local_texts = {f.text for f in soul.facts}
-        pulled = [f for f in hosted if f.text not in local_texts]
-        to_push = [f for f in soul.facts if f.text not in hosted_texts]
-        for f in pulled:
-            soul.etch(f.text, type=f.type, tags=f.tags or None)
-        for f in to_push:
-            await np.push(f.text, type=f.type or "note", tags=f.tags or None)
-        return len(pulled), len(to_push)
+    async def run() -> int:
+        np = Namepoint(ident.namepoint, api_key=ident.api_key)
+        pulled = _merge_into(soul, await np.facts())  # hosted → local (by id)
+        await np.replace(soul.to_yaml())  # write the union back as the soul
+        return pulled
 
     try:
-        pulled, pushed = asyncio.run(run())
+        pulled = asyncio.run(run())
     except (NamepointUnavailable, NamepointAuthRequired) as e:
         print(str(e))
         return 1
     soul.save(path)
-    if pulled or pushed:
-        print(f"🔄  synced {handle} ↔ ./{path}")
-        print(f"    ↓ pulled {pulled} new   ↑ pushed {pushed} new   ({len(soul.facts)} local total)")
-        print(f"    live: https://mcpaas.live/{handle}")
-    else:
-        print(f"already in sync — {len(soul.facts)} facts both sides ({handle})")
+    _record_home(soul, path, ident.namepoint)
+    if fresh:
+        _print_anon_reminder(ident)
+    print(f"🔄  synced {ident.namepoint} ↔ ./{path}  (↓ {pulled} new local; union pushed; "
+          f"{len(soul.facts)} facts)")
+    print(f"    live: {ident.url}")
     return 0
 
 
@@ -338,26 +388,28 @@ def main(argv: list[str] | None = None) -> int:
     pf.add_argument("-f", "--file", default=DEFAULT_FILE)
     pf.set_defaults(func=cmd_forget)
 
-    pnp = sub.add_parser("namepoint", help="hosted namepoint ops (link / push / pull)")
+    pnp = sub.add_parser("namepoint", help="hosted namepoint ops (claim / status / push / pull / sync)")
     npsub = pnp.add_subparsers(dest="np_cmd", required=True)
-    pnl = npsub.add_parser("link", help="link this soul to a claimed namepoint handle")
-    pnl.add_argument("handle")
-    pnl.add_argument("-f", "--file", default=DEFAULT_FILE)
-    pnl.set_defaults(func=cmd_namepoint_link)
 
-    pnpush = npsub.add_parser("push", help="upload local facts to the namepoint (needs MCPAAS_API_KEY)")
+    pnc = npsub.add_parser("claim", help="get a namepoint — --email for a recoverable one, else anonymous")
+    pnc.add_argument("--email", default=None, help="claim a recoverable, named namepoint for this email")
+    pnc.add_argument("-f", "--file", default=DEFAULT_FILE)
+    pnc.set_defaults(func=cmd_namepoint_claim)
+
+    pnst = npsub.add_parser("status", help="show the current namepoint identity")
+    pnst.set_defaults(func=cmd_namepoint_status)
+
+    pnpush = npsub.add_parser("push", help="upload local facts (auto-provisions anonymously first time)")
     pnpush.add_argument("-f", "--file", default=DEFAULT_FILE)
-    pnpush.add_argument("--handle", default=None, help="override the linked handle")
     pnpush.set_defaults(func=cmd_namepoint_push)
 
     pnpull = npsub.add_parser("pull", help="merge hosted facts into the local soul (public read)")
     pnpull.add_argument("-f", "--file", default=DEFAULT_FILE)
-    pnpull.add_argument("--handle", default=None, help="override the linked handle")
+    pnpull.add_argument("--handle", default=None, help="read a specific namepoint instead of yours")
     pnpull.set_defaults(func=cmd_namepoint_pull)
 
-    pnsync = npsub.add_parser("sync", help="reconcile local <-> hosted, union by text (needs MCPAAS_API_KEY)")
+    pnsync = npsub.add_parser("sync", help="reconcile local <-> hosted (auto-provisions first time)")
     pnsync.add_argument("-f", "--file", default=DEFAULT_FILE)
-    pnsync.add_argument("--handle", default=None, help="override the linked handle")
     pnsync.set_defaults(func=cmd_namepoint_sync)
 
     args = p.parse_args(argv)
