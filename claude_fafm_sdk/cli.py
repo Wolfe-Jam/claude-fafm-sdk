@@ -244,6 +244,59 @@ def cmd_namepoint_pull(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_namepoint_sync(args: argparse.Namespace) -> int:
+    """Reconcile local <-> hosted: union by text — pull hosted-only facts down,
+    push local-only facts up. Client-side set-difference, NOT smart-merge (merge is
+    the paid intel). The wire is append-only with no id, so dedup is by text and
+    edited text accumulates both versions hosted — true merge is server-side. Needs
+    MCPAAS_API_KEY (it writes); use `pull` for a read-only merge."""
+    import asyncio
+
+    from .client import Namepoint, NamepointAuthRequired, NamepointUnavailable
+
+    path = Path(args.file)
+    if not path.exists():
+        print(f"{path} not found — run: claude-fafm-sdk init")
+        return 1
+    soul = Soul.load(path)
+    handle = _resolve_handle(soul, args)
+    if handle is None:
+        print("no namepoint linked — link one first:  claude-fafm-sdk namepoint link <handle>")
+        return 1
+    key = os.environ.get("MCPAAS_API_KEY")
+    if not key:
+        print("sync writes too — needs your token (emailed when you claimed at mcpaas.live/claim):")
+        print("  export MCPAAS_API_KEY=...   (or use `namepoint pull` for a read-only merge)")
+        return 1
+
+    async def run() -> tuple[int, int]:
+        np = Namepoint(handle, api_key=key)
+        hosted = await np.facts()
+        hosted_texts = {f.text for f in hosted}
+        local_texts = {f.text for f in soul.facts}
+        pulled = [f for f in hosted if f.text not in local_texts]
+        to_push = [f for f in soul.facts if f.text not in hosted_texts]
+        for f in pulled:
+            soul.etch(f.text, type=f.type, tags=f.tags or None)
+        for f in to_push:
+            await np.push(f.text, type=f.type or "note", tags=f.tags or None)
+        return len(pulled), len(to_push)
+
+    try:
+        pulled, pushed = asyncio.run(run())
+    except (NamepointUnavailable, NamepointAuthRequired) as e:
+        print(str(e))
+        return 1
+    soul.save(path)
+    if pulled or pushed:
+        print(f"🔄  synced {handle} ↔ ./{path}")
+        print(f"    ↓ pulled {pulled} new   ↑ pushed {pushed} new   ({len(soul.facts)} local total)")
+        print(f"    live: https://mcpaas.live/{handle}")
+    else:
+        print(f"already in sync — {len(soul.facts)} facts both sides ({handle})")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="claude-fafm-sdk", description="Portable .fafm AI memory.")
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -301,6 +354,11 @@ def main(argv: list[str] | None = None) -> int:
     pnpull.add_argument("-f", "--file", default=DEFAULT_FILE)
     pnpull.add_argument("--handle", default=None, help="override the linked handle")
     pnpull.set_defaults(func=cmd_namepoint_pull)
+
+    pnsync = npsub.add_parser("sync", help="reconcile local <-> hosted, union by text (needs MCPAAS_API_KEY)")
+    pnsync.add_argument("-f", "--file", default=DEFAULT_FILE)
+    pnsync.add_argument("--handle", default=None, help="override the linked handle")
+    pnsync.set_defaults(func=cmd_namepoint_sync)
 
     args = p.parse_args(argv)
     return int(args.func(args))

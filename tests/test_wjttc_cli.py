@@ -166,9 +166,30 @@ def test_brake_cli_namepoint_push_needs_linked_handle(tmp_path, monkeypatch, cap
     assert "mcpaas.live/claim" in capsys.readouterr().out
 
 
+def test_brake_cli_namepoint_sync_needs_key(tmp_path, monkeypatch, capsys):
+    # Guard, no network: sync writes, so no token → stops before the wire.
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("MCPAAS_API_KEY", raising=False)
+    main(["init"])
+    main(["namepoint", "link", "you99"])
+    capsys.readouterr()
+    assert main(["namepoint", "sync"]) == 1
+    assert "MCPAAS_API_KEY" in capsys.readouterr().out
+
+
+def test_brake_cli_namepoint_sync_needs_linked_handle(tmp_path, monkeypatch, capsys):
+    # Guard, no network: refuses the unlinked @claude-code: placeholder.
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("MCPAAS_API_KEY", "tok")
+    main(["init"])
+    capsys.readouterr()
+    assert main(["namepoint", "sync"]) == 1
+    assert "link" in capsys.readouterr().out.lower()
+
+
 @pytest.mark.skipif(
     not (os.environ.get("MCPAAS_API_KEY") and os.environ.get("CFS_TEST_NAMEPOINT")),
-    reason="set MCPAAS_API_KEY + CFS_TEST_NAMEPOINT for the live TYRE push/pull roundtrip",
+    reason="set MCPAAS_API_KEY + CFS_TEST_NAMEPOINT for the live TYRE push/pull/sync roundtrip",
 )
 def test_tyre_live_push_pull_roundtrip(tmp_path, monkeypatch):
     # TYRE (the live TEST tier — distinct from PIT/eval) — the real loop against a
@@ -188,3 +209,7 @@ def test_tyre_live_push_pull_roundtrip(tmp_path, monkeypatch):
     assert main(["namepoint", "pull"]) == 0
     texts = [f.text for f in Soul.load(tmp_path / "soul.fafm").facts]
     assert marker in texts
+
+    # sync converges + is idempotent (both sides already hold the marker).
+    assert main(["namepoint", "sync"]) == 0
+    assert main(["namepoint", "sync"]) == 0

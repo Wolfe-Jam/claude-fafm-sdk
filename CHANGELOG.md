@@ -3,6 +3,24 @@
 All notable changes to `claude-fafm-sdk` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **The STICK loop — `namepoint` command group** (local soul ↔ hosted namepoint):
+  - `namepoint link <handle>` — link a claimed handle to the local soul (local
+    metadata; stays honest — no "live" claim until a real push).
+  - `namepoint push` — upload local facts; dedups client-side by text against the
+    current hosted state (the wire is append-only with no server dedup), so re-runs
+    are idempotent. Needs `MCPAAS_API_KEY`.
+  - `namepoint pull` — merge hosted facts into the local soul; keyless (reads are
+    public); dedup by text.
+  - `namepoint sync` — reconcile both ways (union by text: pull hosted-only down,
+    push local-only up). Client-side set-difference, not smart-merge (merge is the
+    paid intel). Needs `MCPAAS_API_KEY`.
+- `init` now prints a cross-vendor CTA → claim a free two-digit handle at
+  mcpaas.live/claim, then `namepoint link`.
+- WJTTC: live **TYRE** roundtrip test (gated on `MCPAAS_API_KEY` + `CFS_TEST_NAMEPOINT`).
+
 ## [0.2.0] — 2026-05-22
 
 ### Added

@@ -60,10 +60,11 @@ recorded pass-through: *"step considered, N/A at this stage → pass."*
 
 ## 🛞 4 · TYRE — live test (costs creds)
 
-Real `namepoint push`/`pull` roundtrip against a live namepoint — **no fakes**.
-Gated on `MCPAAS_API_KEY` + `CFS_TEST_NAMEPOINT`; skips cleanly without them
-(`tests/test_wjttc_cli.py::test_tyre_live_push_pull_roundtrip`). Idempotent — the
-marker text is stable, so client-side dedup keeps re-runs from duplicating.
+Real `namepoint push`/`pull`/`sync` roundtrip against a live namepoint — **no
+fakes**. Gated on `MCPAAS_API_KEY` + `CFS_TEST_NAMEPOINT`; skips cleanly without
+them (`tests/test_wjttc_cli.py::test_tyre_live_push_pull_roundtrip`). Idempotent —
+the marker text is stable, so client-side dedup keeps re-runs from duplicating, and
+a converged `sync` reports no changes.
 
 ```sh
 MCPAAS_API_KEY=... CFS_TEST_NAMEPOINT=you99 uv run pytest -k tyre
