@@ -25,8 +25,13 @@ pip3 install claude-fafm-sdk    # also works
 ```sh
 uvx claude-fafm-sdk init                 # 🧬 create a portable soul
 claude-fafm-sdk etch "ships uv-first"    # write a memory
-claude-fafm-sdk recall uv                # recall it
+claude-fafm-sdk recall uv                # recall it  (filters: --tag --type --priority)
+claude-fafm-sdk ls                       # list every fact, ranked
+claude-fafm-sdk forget install           # delete a fact by id
 ```
+
+Five commands — `init`, `etch`, `recall`, `ls`, `forget`. Run `claude-fafm-sdk
+--help` (or `<cmd> --help`) for the full surface.
 
 Hand `soul.fafm` to `grok-faf-voice` and it reads it — same format, no fork.
 
