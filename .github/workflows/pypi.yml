@@ -1,0 +1,36 @@
+name: Publish to PyPI
+
+# Stage 2: fires when a GitHub Release is published (after TestPyPI staging).
+# Production publish via OIDC trusted publishing — no token, no twine.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  publish:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write  # Required for trusted publishing
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install build tools
+        run: pip install build
+
+      - name: Build package
+        run: python -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        # No token — uses OIDC trusted publisher configured at
+        # https://pypi.org/manage/project/claude-fafm-sdk/settings/publishing/
