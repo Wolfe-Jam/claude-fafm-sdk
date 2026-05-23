@@ -43,6 +43,18 @@ def test_engine_recall_ranks_priority_then_recency():
     assert [f.id for f in ranked] == ["b", "a"]  # critical before standard
 
 
+def test_engine_recall_recency_breaks_same_second_ties():
+    # Facts etched in one fast loop share a second-granularity timestamp; recall
+    # must still return them newest-first (insertion-index tiebreak), not the
+    # insertion order. Regression guard for the recency bug.
+    s = Soul("@me")
+    s.etch("first", id="a")
+    s.etch("second", id="b")
+    s.etch("third", id="c")
+    assert len({f.timestamp for f in s.facts}) == 1  # same second
+    assert [f.id for f in s.recall()] == ["c", "b", "a"]  # newest first
+
+
 def test_engine_delete_fact():
     s = Soul("@me")
     s.etch("temp", id="z")
@@ -76,4 +88,4 @@ def test_brake_namepoint_write_needs_a_key():
     np = Namepoint("@me")
     with pytest.raises(NamepointAuthRequired) as e:
         asyncio.run(np.push("a fact"))
-    assert "memory.faf.one" in str(e.value)
+    assert "mcpaas.live/claim" in str(e.value)  # points to the live claim engine

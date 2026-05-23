@@ -52,8 +52,12 @@ More in **[examples/](examples/)** — portability + a real cross-vendor roundtr
 
 ## Full intel (free namepoint)
 
-A **namepoint** is a free handle on [memory.faf.one](https://memory.faf.one)
-where your soul lives (hosted + sticky) and the full intel runs at personal scale.
+A **namepoint** is your handle on [memory.faf.one](https://memory.faf.one) where
+your soul lives (hosted + sticky) and the full intel runs at personal scale.
+**A two-digit number makes a handle free** — `@james99` and `@john10` are free
+(10 is the lowest; `@john9` isn't). Clean prestige names (no number) are the paid
+tier. Claim one at [mcpaas.live/claim](https://mcpaas.live/claim).
+
 Hosted reads/writes use the family-standard MCP client (`fastmcp`), an opt-in extra:
 
 ```sh
@@ -63,14 +67,13 @@ uv add "claude-fafm-sdk[namepoint]"
 ```python
 from claude_fafm_sdk import Namepoint
 
-np = Namepoint("@me", api_key="...")        # free key from memory.faf.one
+np = Namepoint("@james99", api_key="...")    # free handle + key from mcpaas.live/claim
 await np.push("a durable fact", type="fact")
-body = await np.pull()                       # reads are public — no key
+body = await np.pull()                         # reads are public — no key
 ```
 
 Wired to the MCPaaS asset core — the same backend grok-faf-voice uses
-(`get_soul` / `write_soul`). The `memory.faf.one` front door + free-namepoint
-signup are landing; the local `Soul` works fully offline today, no account.
+(`get_soul` / `write_soul`). The local `Soul` works fully offline today, no account.
 
 ## Why
 

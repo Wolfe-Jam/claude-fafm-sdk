@@ -3,6 +3,26 @@
 All notable changes to `claude-fafm-sdk` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [0.2.0] — 2026-05-22
+
+### Added
+- CLI `ls` — list every fact in the soul (ranked priority then recency).
+- CLI `forget <id>` — delete a fact by id (wraps `Soul.delete_fact`).
+- CLI `recall` filters: `--tag` (repeatable), `--type`, `--priority` (min floor) —
+  the offline `Soul` API is now fully reachable from the CLI.
+
+### Fixed
+- `recall` recency tiebreak: facts sharing a second-granularity timestamp (any
+  fast write loop — the demo soul, examples, an agent batch-etching) now return
+  **newest-first** instead of insertion order. Recency is deterministic again.
+
+### Changed
+- Version is single-sourced from `claude_fafm_sdk.__version__` (hatchling dynamic);
+  `pyproject.toml` no longer pins a second copy — no version drift.
+- README + namepoint client state the free-namepoint rule accurately: a two-digit
+  number makes a handle free (`@james99`, `@john10`; `@john9` isn't), prestige names
+  are the paid tier. Claim at the live engine, [mcpaas.live/claim](https://mcpaas.live/claim).
+
 ## [0.1.1] — 2026-05-22
 
 ### Changed

@@ -19,7 +19,7 @@ from .client import (
 )
 from .soul import PRIORITY_ORDER, Fact, Soul, canonical_priority
 
-__version__ = "0.1.1"
+__version__ = "0.2.0"
 
 __all__ = [
     "Soul",

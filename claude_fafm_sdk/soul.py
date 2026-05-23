@@ -213,17 +213,21 @@ class Soul:
         floor = PRIORITY_RANK.get(canonical_priority(min_priority), 0)
         q = (query or "").lower()
         want_tags = set(tags or [])
-        results = [
-            f for f in self._facts
+        indexed = [
+            (i, f) for i, f in enumerate(self._facts)
             if (not q or q in f.text.lower())
             and (not want_tags or want_tags.intersection(f.tags))
             and (type is None or f.type == type)
             and PRIORITY_RANK.get(f.priority, 1) >= floor
         ]
-        results.sort(
-            key=lambda f: (PRIORITY_RANK.get(f.priority, 1), f.timestamp or ""),
+        # Rank by priority, then recency. The insertion index breaks timestamp
+        # ties (second-granularity stamps collide in a fast write loop) so the
+        # most-recently-etched fact always wins — recency must be deterministic.
+        indexed.sort(
+            key=lambda t: (PRIORITY_RANK.get(t[1].priority, 1), t[1].timestamp or "", t[0]),
             reverse=True,
         )
+        results = [f for _, f in indexed]
         return results[:limit] if limit is not None else results
 
     def get_fact(self, id: str) -> Fact | None:

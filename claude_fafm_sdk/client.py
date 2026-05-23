@@ -79,8 +79,9 @@ class Namepoint:
         """Write an entry to the hosted soul (``write_soul``). Needs a key."""
         if not self._api_key:
             raise NamepointAuthRequired(
-                "writing to a namepoint needs your free key — get one at "
-                "https://memory.faf.one (or set MCPAAS_API_KEY). Reads (pull) need no key."
+                "writing to a namepoint needs your key — claim a free handle "
+                "(a two-digit number, e.g. @james99) at https://mcpaas.live/claim "
+                "(or set MCPAAS_API_KEY). Reads (pull) need no key."
             )
         Client, Transport = _client_classes()
         args: dict[str, Any] = {"soul": self.handle, "entry": text, "type": type, "token": self._api_key}

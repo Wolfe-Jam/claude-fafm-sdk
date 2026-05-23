@@ -54,3 +54,50 @@ def test_engine_cli_etch_then_recall(tmp_path, monkeypatch, capsys):
     capsys.readouterr()
     assert main(["recall", "uv"]) == 0
     assert "ships uv-first" in capsys.readouterr().out
+
+
+def _seed(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    main(["init"])
+    main(["etch", "ships uv-first", "--id", "install", "--type", "reference", "--priority", "high"])
+    main(["etch", "portable across vendors", "--id", "why", "--type", "project"])
+
+
+def test_engine_cli_recall_filters_by_type(tmp_path, monkeypatch, capsys):
+    _seed(monkeypatch, tmp_path)
+    capsys.readouterr()
+    assert main(["recall", "--type", "project"]) == 0
+    out = capsys.readouterr().out
+    assert "portable across vendors" in out and "ships uv-first" not in out
+
+
+def test_engine_cli_recall_filters_by_priority(tmp_path, monkeypatch, capsys):
+    _seed(monkeypatch, tmp_path)
+    capsys.readouterr()
+    assert main(["recall", "--priority", "high"]) == 0
+    out = capsys.readouterr().out
+    assert "ships uv-first" in out and "portable across vendors" not in out
+
+
+def test_engine_cli_ls_lists_all_facts(tmp_path, monkeypatch, capsys):
+    _seed(monkeypatch, tmp_path)
+    capsys.readouterr()
+    assert main(["ls"]) == 0
+    out = capsys.readouterr().out
+    assert "2 facts" in out
+    assert "ships uv-first" in out and "portable across vendors" in out
+
+
+def test_engine_cli_forget_deletes_by_id(tmp_path, monkeypatch, capsys):
+    _seed(monkeypatch, tmp_path)
+    capsys.readouterr()
+    assert main(["forget", "why"]) == 0
+    assert "1 left" in capsys.readouterr().out
+    assert Soul.load(tmp_path / "soul.fafm").get_fact("why") is None
+
+
+def test_brake_forget_missing_id_fails_loud(tmp_path, monkeypatch, capsys):
+    _seed(monkeypatch, tmp_path)
+    capsys.readouterr()
+    assert main(["forget", "nope"]) == 1  # non-zero exit, clear message
+    assert "no fact" in capsys.readouterr().out

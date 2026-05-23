@@ -37,6 +37,14 @@ def _namepoint(name: str | None = None) -> str:
     return f"@claude-code:{name or Path.cwd().name}"
 
 
+def _fmt_fact(f) -> str:
+    """One-line render of a fact for recall/ls output: priority, id, text."""
+    head = f"[{f.priority}]"
+    if f.id:
+        head += f" {f.id}"
+    return f"  • {head} — {f.text}"
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     path = Path(args.file)
     if path.exists() and not args.force:
@@ -74,12 +82,46 @@ def cmd_recall(args: argparse.Namespace) -> int:
     if not path.exists():
         print(f"{path} not found — run: claude-fafm-sdk init")
         return 1
-    hits = Soul.load(path).recall(args.query, limit=args.limit)
+    hits = Soul.load(path).recall(
+        args.query,
+        tags=args.tag or None,
+        type=args.type,
+        min_priority=args.priority,
+        limit=args.limit,
+    )
     if not hits:
         print("no matches")
         return 0
     for f in hits:
-        print(f"  • {f.text}")
+        print(_fmt_fact(f))
+    return 0
+
+
+def cmd_ls(args: argparse.Namespace) -> int:
+    path = Path(args.file)
+    if not path.exists():
+        print(f"{path} not found — run: claude-fafm-sdk init")
+        return 1
+    soul = Soul.load(path)
+    facts = soul.recall(limit=args.limit)  # all facts, ranked priority then recency
+    n = len(soul.facts)
+    print(f"{n} fact{'s' if n != 1 else ''} in ./{path}  ({soul.namepoint})")
+    for f in facts:
+        print(_fmt_fact(f))
+    return 0
+
+
+def cmd_forget(args: argparse.Namespace) -> int:
+    path = Path(args.file)
+    if not path.exists():
+        print(f"{path} not found — run: claude-fafm-sdk init")
+        return 1
+    soul = Soul.load(path)
+    if not soul.delete_fact(args.id):
+        print(f"no fact with id {args.id!r}")
+        return 1
+    soul.save(path)
+    print(f"forgot {args.id!r} → ./{path}  ({len(soul.facts)} left)")
     return 0
 
 
@@ -106,8 +148,23 @@ def main(argv: list[str] | None = None) -> int:
     pr = sub.add_parser("recall", help="recall facts from the soul")
     pr.add_argument("query", nargs="?", default=None)
     pr.add_argument("-f", "--file", default=DEFAULT_FILE)
+    pr.add_argument("--tag", action="append", default=None, help="filter by tag (repeatable)")
+    pr.add_argument("--type", default=None, help="filter by type")
+    pr.add_argument(
+        "--priority", default="ephemeral", help="minimum priority floor (default: ephemeral)"
+    )
     pr.add_argument("--limit", type=int, default=None)
     pr.set_defaults(func=cmd_recall)
+
+    pls = sub.add_parser("ls", help="list every fact in the soul (ranked)")
+    pls.add_argument("-f", "--file", default=DEFAULT_FILE)
+    pls.add_argument("--limit", type=int, default=None)
+    pls.set_defaults(func=cmd_ls)
+
+    pf = sub.add_parser("forget", help="delete a fact by id")
+    pf.add_argument("id")
+    pf.add_argument("-f", "--file", default=DEFAULT_FILE)
+    pf.set_defaults(func=cmd_forget)
 
     args = p.parse_args(argv)
     return int(args.func(args))

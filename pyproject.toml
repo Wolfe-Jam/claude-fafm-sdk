@@ -1,6 +1,6 @@
 [project]
 name = "claude-fafm-sdk"
-version = "0.1.1"
+dynamic = ["version"]  # single source: claude_fafm_sdk/__init__.py:__version__
 description = "Portable, cross-vendor AI memory in .fafm — offline-first SDK; connect a free namepoint for full intel."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -40,6 +40,9 @@ claude-fafm-sdk = "claude_fafm_sdk.cli:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "claude_fafm_sdk/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["claude_fafm_sdk"]

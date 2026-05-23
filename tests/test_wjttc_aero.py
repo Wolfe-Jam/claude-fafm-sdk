@@ -39,11 +39,16 @@ def test_aero_cross_vendor_format_conformance(tmp_path):
     assert fact["text"] == "a fact" and fact["id"] == "x"  # canonical fact keys
 
 
-def test_aero_version_sync():
-    # pyproject version == package __version__ — no drift.
+def test_aero_version_single_source():
+    # Version is single-sourced from __init__.__version__ (hatchling dynamic).
+    # pyproject must NOT pin a static version, and the installed package
+    # metadata must equal __version__ — the only drift guard that matters.
+    from importlib.metadata import version
+
     pyproject = (Path(__file__).resolve().parent.parent / "pyproject.toml").read_text()
-    m = re.search(r'^version = "([^"]+)"', pyproject, re.MULTILINE)
-    assert m and m.group(1) == claude_fafm_sdk.__version__
+    assert 'dynamic = ["version"]' in pyproject
+    assert not re.search(r'^version = "', pyproject, re.MULTILINE)  # no static pin
+    assert version("claude-fafm-sdk") == claude_fafm_sdk.__version__
 
 
 def test_aero_namepoint_sends_flexi_header(monkeypatch):
