@@ -170,11 +170,12 @@ def test_brake_cli_namepoint_push_needs_linked_handle(tmp_path, monkeypatch, cap
     not (os.environ.get("MCPAAS_API_KEY") and os.environ.get("CFS_TEST_NAMEPOINT")),
     reason="set MCPAAS_API_KEY + CFS_TEST_NAMEPOINT for the live TYRE push/pull roundtrip",
 )
-def test_pit_live_push_pull_roundtrip(tmp_path, monkeypatch):
-    # PIT — the real loop against a live namepoint (no fakes). Idempotent: the
-    # marker text is stable, so client-side dedup keeps re-runs from duplicating.
+def test_tyre_live_push_pull_roundtrip(tmp_path, monkeypatch):
+    # TYRE (the live TEST tier — distinct from PIT/eval) — the real loop against a
+    # live namepoint, no fakes. Idempotent: the marker text is stable, so
+    # client-side dedup keeps re-runs from duplicating.
     handle = os.environ["CFS_TEST_NAMEPOINT"]
-    marker = f"pit roundtrip marker — {handle}"
+    marker = f"tyre roundtrip marker — {handle}"
     monkeypatch.chdir(tmp_path)
     main(["init"])
     main(["namepoint", "link", handle])

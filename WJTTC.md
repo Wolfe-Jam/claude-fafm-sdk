@@ -13,7 +13,8 @@ marked in the test name (`faf wjttc` reads them).
 | 🛡️ **BRAKE** | ~free | every commit | Hard gates + no-guess/honesty invariants. Fail = don't ship. |
 | ⚙️ **ENGINE** | ~free | every commit | Correctness of the local `.fafm` ops + the CLI. |
 | 🌀 **AERO** | ~free | every commit | Integration + polish: full lifecycle, format conformance, version sync. |
-| 🛞 **PIT** | costs creds | pre-release / manual | Live `push`/`pull` roundtrip against a real namepoint (gated on `MCPAAS_API_KEY` + `CFS_TEST_NAMEPOINT`). |
+| 🛞 **TYRE** | costs creds | pre-release / manual | Live `push`/`pull` roundtrip against a real namepoint (gated on `MCPAAS_API_KEY` + `CFS_TEST_NAMEPOINT`). |
+| 🅿️ **PIT** | — | — | Evaluation / EVAL tier — reserved (no eval suite in this SDK yet). |
 
 ## 🛡️ BRAKE — gates + honesty invariants
 
@@ -36,12 +37,17 @@ marked in the test name (`faf wjttc` reads them).
   `vnd.fafm+yaml` v1.1 — the shape `fafm-engine` + `grok-faf-voice` read
 - Version single-source: installed metadata == `__version__`, no static pin (`tests/test_wjttc_aero.py`)
 
-## 🛞 PIT — live
+## 🛞 TYRE — live (the TEST tier)
 
 Real `namepoint push`/`pull` roundtrip against a live namepoint — no fakes.
 Gated on `MCPAAS_API_KEY` + `CFS_TEST_NAMEPOINT`; skips cleanly without them
-(`tests/test_wjttc_cli.py::test_pit_live_push_pull_roundtrip`). Idempotent —
+(`tests/test_wjttc_cli.py::test_tyre_live_push_pull_roundtrip`). Idempotent —
 the marker text is stable, so client-side dedup keeps re-runs from duplicating.
+
+> **TYRE vs PIT:** TYRE = the (live) **Test** tier; PIT = **Evaluation / EVAL**, a
+> separate tier (no eval suite here yet). Note: `faf wjttc` doesn't recognize the
+> TYRE keyword yet — it shows this test as "untiered" — a faf-cli taxonomy gap, not
+> a coverage hole.
 
 ```sh
 MCPAAS_API_KEY=... CFS_TEST_NAMEPOINT=you99 uv run pytest -k tyre
@@ -54,4 +60,4 @@ uv run pytest                       # or: pip3 install -e ".[dev]" && pytest
 faf wjttc                           # tier-balance audit
 ```
 
-**Balance:** all four tiers covered (0 untiered). PIT is live + gated.
+**Balance:** BRAKE + ENGINE + AERO + a live TYRE roundtrip. PIT (eval) reserved.
