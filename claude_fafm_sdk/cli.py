@@ -9,6 +9,7 @@ yet. The magic is real; we don't fake it.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -65,6 +66,8 @@ def cmd_init(args: argparse.Namespace) -> int:
     else:
         print("    Portable .fafm — the open format grok-faf-voice + fafm-engine read.")
         print('    Next:  claude-fafm-sdk etch "your first memory"')
+    print("    Cross-vendor → claim a free handle (a two-digit number, e.g. you99)")
+    print("      at https://mcpaas.live/claim, then:  claude-fafm-sdk namepoint link <handle>")
     return 0
 
 
@@ -125,6 +128,28 @@ def cmd_forget(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_namepoint_link(args: argparse.Namespace) -> int:
+    """Link this local soul to a claimed namepoint handle. Local metadata only —
+    nothing is uploaded here (that's `namepoint push`). Stays honest: no "live"
+    claim until a push actually puts it there."""
+    path = Path(args.file)
+    if not path.exists():
+        print(f"{path} not found — run: claude-fafm-sdk init")
+        return 1
+    soul = Soul.load(path)
+    soul.namepoint = args.handle
+    soul.save(path)
+    has_key = bool(os.environ.get("MCPAAS_API_KEY"))
+    print(f"🔗  Linked ./{path} → {args.handle}")
+    print("    Push it so Grok (and any model) can read your soul:")
+    if has_key:
+        print("      claude-fafm-sdk namepoint push")
+    else:
+        print("      export MCPAAS_API_KEY=...   # token emailed when you claimed at mcpaas.live/claim")
+        print("      claude-fafm-sdk namepoint push")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="claude-fafm-sdk", description="Portable .fafm AI memory.")
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -165,6 +190,13 @@ def main(argv: list[str] | None = None) -> int:
     pf.add_argument("id")
     pf.add_argument("-f", "--file", default=DEFAULT_FILE)
     pf.set_defaults(func=cmd_forget)
+
+    pnp = sub.add_parser("namepoint", help="hosted namepoint ops (link → push/pull coming)")
+    npsub = pnp.add_subparsers(dest="np_cmd", required=True)
+    pnl = npsub.add_parser("link", help="link this soul to a claimed namepoint handle")
+    pnl.add_argument("handle")
+    pnl.add_argument("-f", "--file", default=DEFAULT_FILE)
+    pnl.set_defaults(func=cmd_namepoint_link)
 
     args = p.parse_args(argv)
     return int(args.func(args))

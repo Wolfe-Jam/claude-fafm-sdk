@@ -101,3 +101,40 @@ def test_brake_forget_missing_id_fails_loud(tmp_path, monkeypatch, capsys):
     capsys.readouterr()
     assert main(["forget", "nope"]) == 1  # non-zero exit, clear message
     assert "no fact" in capsys.readouterr().out
+
+
+def test_engine_cli_init_cta_points_to_claim(tmp_path, monkeypatch, capsys):
+    # The onboarding gem: init nudges toward a free namepoint, honestly.
+    monkeypatch.chdir(tmp_path)
+    main(["init"])
+    out = capsys.readouterr().out
+    assert "mcpaas.live/claim" in out
+    assert "namepoint link" in out
+
+
+def test_engine_cli_namepoint_link_sets_handle(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("MCPAAS_API_KEY", raising=False)
+    main(["init"])
+    assert main(["namepoint", "link", "claude-fafm-sdk"]) == 0
+    assert Soul.load(tmp_path / "soul.fafm").namepoint == "claude-fafm-sdk"
+
+
+def test_brake_namepoint_link_is_honest_not_live(tmp_path, monkeypatch, capsys):
+    # link writes LOCAL metadata only — it must NOT claim the soul is live/hosted
+    # (nothing is uploaded until `namepoint push`). Honest-by-design.
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("MCPAAS_API_KEY", raising=False)
+    main(["init"])
+    capsys.readouterr()
+    main(["namepoint", "link", "you99"])
+    out = capsys.readouterr().out.lower()
+    assert "is live" not in out and "now live" not in out and "readable by grok" not in out
+    assert "namepoint push" in out          # tells you how to actually go live
+    assert "mcpaas_api_key" in out          # no key set → points to the token
+
+
+def test_brake_namepoint_link_missing_soul_fails(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    assert main(["namepoint", "link", "you99"]) == 1
+    assert "not found" in capsys.readouterr().out
