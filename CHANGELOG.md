@@ -3,7 +3,7 @@
 All notable changes to `claude-fafm-sdk` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [0.3.0] — 2026-05-23
 
 ### Added
 - **Zero-config namepoints — the `.fafm`-native hosted loop.** A namepoint is your
