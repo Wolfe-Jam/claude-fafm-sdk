@@ -4,6 +4,10 @@ ENGINE: the commands do what they say. BRAKE: the `init` message stays HONEST �
 no fake fact counts, no fake "Grok read it back" claim. The wow must be true.
 """
 
+import os
+
+import pytest
+
 from claude_fafm_sdk import Soul
 from claude_fafm_sdk.cli import main
 
@@ -138,3 +142,48 @@ def test_brake_namepoint_link_missing_soul_fails(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     assert main(["namepoint", "link", "you99"]) == 1
     assert "not found" in capsys.readouterr().out
+
+
+def test_brake_cli_namepoint_push_needs_key(tmp_path, monkeypatch, capsys):
+    # Guard, no network: a write with no token stops BEFORE the wire, pointing at
+    # the token you get on claim. (Local check — doesn't touch the namepoint.)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("MCPAAS_API_KEY", raising=False)
+    main(["init"])
+    main(["namepoint", "link", "you99"])
+    capsys.readouterr()
+    assert main(["namepoint", "push"]) == 1
+    assert "MCPAAS_API_KEY" in capsys.readouterr().out
+
+
+def test_brake_cli_namepoint_push_needs_linked_handle(tmp_path, monkeypatch, capsys):
+    # Guard, no network: refuses the unlinked @claude-code: placeholder.
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("MCPAAS_API_KEY", "tok")
+    main(["init"])
+    capsys.readouterr()
+    assert main(["namepoint", "push"]) == 1
+    assert "mcpaas.live/claim" in capsys.readouterr().out
+
+
+@pytest.mark.skipif(
+    not (os.environ.get("MCPAAS_API_KEY") and os.environ.get("CFS_TEST_NAMEPOINT")),
+    reason="set MCPAAS_API_KEY + CFS_TEST_NAMEPOINT for the live TYRE push/pull roundtrip",
+)
+def test_pit_live_push_pull_roundtrip(tmp_path, monkeypatch):
+    # PIT — the real loop against a live namepoint (no fakes). Idempotent: the
+    # marker text is stable, so client-side dedup keeps re-runs from duplicating.
+    handle = os.environ["CFS_TEST_NAMEPOINT"]
+    marker = f"pit roundtrip marker — {handle}"
+    monkeypatch.chdir(tmp_path)
+    main(["init"])
+    main(["namepoint", "link", handle])
+    main(["etch", marker, "--id", "tyre"])
+    assert main(["namepoint", "push"]) == 0
+
+    # Fresh local soul → pull from the live namepoint → the marker comes back.
+    main(["init", "--force"])
+    main(["namepoint", "link", handle])
+    assert main(["namepoint", "pull"]) == 0
+    texts = [f.text for f in Soul.load(tmp_path / "soul.fafm").facts]
+    assert marker in texts

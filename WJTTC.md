@@ -13,7 +13,7 @@ marked in the test name (`faf wjttc` reads them).
 | 🛡️ **BRAKE** | ~free | every commit | Hard gates + no-guess/honesty invariants. Fail = don't ship. |
 | ⚙️ **ENGINE** | ~free | every commit | Correctness of the local `.fafm` ops + the CLI. |
 | 🌀 **AERO** | ~free | every commit | Integration + polish: full lifecycle, format conformance, version sync. |
-| 🛞 **TYRE** | costs creds | pre-release / manual | Live namepoint probes against `memory.faf.one` (when the backend is real). |
+| 🛞 **PIT** | costs creds | pre-release / manual | Live `push`/`pull` roundtrip against a real namepoint (gated on `MCPAAS_API_KEY` + `CFS_TEST_NAMEPOINT`). |
 
 ## 🛡️ BRAKE — gates + honesty invariants
 
@@ -34,13 +34,18 @@ marked in the test name (`faf wjttc` reads them).
 - Full lifecycle: etch → save → load → recall together
 - **Cross-vendor format conformance:** the soul we write is canonical
   `vnd.fafm+yaml` v1.1 — the shape `fafm-engine` + `grok-faf-voice` read
-- Version sync: `pyproject.toml` == `__version__` (`tests/test_wjttc_aero.py`)
+- Version single-source: installed metadata == `__version__`, no static pin (`tests/test_wjttc_aero.py`)
 
-## 🛞 TYRE — live (later)
+## 🛞 PIT — live
 
-When the namepoint backend is live: real `Namepoint.recall/push/pull` against
-`memory.faf.one`, and an SDK→`.fafm`→grok-faf-voice read roundtrip. (End-to-end
-roundtrip verified previously in grok-faf-voice v0.3.x.)
+Real `namepoint push`/`pull` roundtrip against a live namepoint — no fakes.
+Gated on `MCPAAS_API_KEY` + `CFS_TEST_NAMEPOINT`; skips cleanly without them
+(`tests/test_wjttc_cli.py::test_pit_live_push_pull_roundtrip`). Idempotent —
+the marker text is stable, so client-side dedup keeps re-runs from duplicating.
+
+```sh
+MCPAAS_API_KEY=... CFS_TEST_NAMEPOINT=you99 uv run pytest -k tyre
+```
 
 ## Run
 
@@ -49,4 +54,4 @@ uv run pytest                       # or: pip3 install -e ".[dev]" && pytest
 faf wjttc                           # tier-balance audit
 ```
 
-**Balance:** BRAKE + ENGINE + AERO covered (0 untiered). TYRE waits on the backend.
+**Balance:** all four tiers covered (0 untiered). PIT is live + gated.

@@ -90,12 +90,11 @@ class Namepoint:
         async with Client(Transport(url=self._mcp_url, headers=_MCPAAS_MODE_HEADER)) as client:
             return _first_text(await client.call_tool("write_soul", args))
 
-    async def recall(self, query: str, *, limit: int | None = None) -> list:
-        """Recall from the hosted soul.
+    async def facts(self) -> list:
+        """Parse the hosted soul into ``Fact``s — the open, deterministic read path.
 
-        Pulls the soul and runs deterministic recall locally today; semantic /
-        ranked recall is the namepoint's full-intel upgrade, served as the
-        server intel lands. Returns a list of matching ``Fact``s.
+        ``get_soul`` may prepend a server preamble before the YAML body, separated
+        by ``\\n---\\n``; we take the body after it.
         """
         from io import StringIO
 
@@ -104,10 +103,17 @@ class Namepoint:
         from .soul import Fact
 
         body = await self.pull()
-        # get_soul may prepend a server preamble before the YAML body.
         yaml_body = body.split("\n---\n", 1)[-1]
         doc = yaml.safe_load(StringIO(yaml_body)) or {}
-        facts = [Fact.from_obj(f) for f in ((doc.get("memory") or {}).get("facts") or [])]
+        return [Fact.from_obj(f) for f in ((doc.get("memory") or {}).get("facts") or [])]
+
+    async def recall(self, query: str, *, limit: int | None = None) -> list:
+        """Recall from the hosted soul.
+
+        Deterministic substring filter today; semantic / ranked recall is the
+        namepoint's full-intel upgrade, served server-side as it lands (the same
+        CLI/SDK call gets smarter transparently). Returns matching ``Fact``s.
+        """
         q = (query or "").lower()
-        hits = [f for f in facts if not q or q in f.text.lower()]
+        hits = [f for f in await self.facts() if not q or q in f.text.lower()]
         return hits[:limit] if limit is not None else hits

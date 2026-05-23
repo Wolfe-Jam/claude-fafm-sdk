@@ -150,6 +150,100 @@ def cmd_namepoint_link(args: argparse.Namespace) -> int:
     return 0
 
 
+def _resolve_handle(soul: Soul, args: argparse.Namespace) -> str | None:
+    """The wire soul name: explicit --handle wins, else the linked soul.namepoint.
+    A freshly init'd soul still carries the local `@claude-code:...` placeholder —
+    that's not a claimed handle, so we refuse it and point at `namepoint link`."""
+    handle = getattr(args, "handle", None) or soul.namepoint
+    if not handle or handle.startswith("@claude-code:"):
+        return None
+    return handle
+
+
+def cmd_namepoint_push(args: argparse.Namespace) -> int:
+    """Upload local facts to the hosted namepoint. Append-only wire + no server
+    dedup, so we dedup CLIENT-SIDE by text (pull current, push only what's new) —
+    re-running stays idempotent. (Set-difference, not smart-merge; merge is paid.)"""
+    import asyncio
+
+    from .client import Namepoint, NamepointAuthRequired, NamepointUnavailable
+
+    path = Path(args.file)
+    if not path.exists():
+        print(f"{path} not found — run: claude-fafm-sdk init")
+        return 1
+    soul = Soul.load(path)
+    handle = _resolve_handle(soul, args)
+    if handle is None:
+        print("no namepoint linked — claim a free handle at https://mcpaas.live/claim, then:")
+        print("  claude-fafm-sdk namepoint link <handle>   (or pass --handle)")
+        return 1
+    key = os.environ.get("MCPAAS_API_KEY")
+    if not key:
+        print("writing needs your token (emailed when you claimed at mcpaas.live/claim):")
+        print("  export MCPAAS_API_KEY=...")
+        return 1
+
+    async def run() -> tuple[int, int]:
+        np = Namepoint(handle, api_key=key)
+        hosted = {f.text for f in await np.facts()}  # dedup by text (id is lost on the wire)
+        new = [f for f in soul.facts if f.text not in hosted]
+        for f in new:
+            await np.push(f.text, type=f.type or "note", tags=f.tags or None)
+        return len(new), len(hosted)
+
+    try:
+        pushed, already = asyncio.run(run())
+    except NamepointUnavailable as e:
+        print(str(e))
+        return 1
+    except NamepointAuthRequired as e:
+        print(str(e))
+        return 1
+    if pushed:
+        print(f"⬆️  pushed {pushed} fact{'s' if pushed != 1 else ''} → {handle}  ({already} already there)")
+        print(f"    live + readable by Grok and any model:  https://mcpaas.live/{handle}")
+    else:
+        print(f"already in sync — {already} fact{'s' if already != 1 else ''} on https://mcpaas.live/{handle}")
+    return 0
+
+
+def cmd_namepoint_pull(args: argparse.Namespace) -> int:
+    """Merge hosted facts into the local soul. Reads are public (no key). Dedup by
+    text so re-pulling doesn't duplicate; hosted facts arrive id-less (the wire
+    drops ids) and are added as new local facts."""
+    import asyncio
+
+    from .client import Namepoint, NamepointUnavailable
+
+    path = Path(args.file)
+    soul = Soul.load(path) if path.exists() else None
+    if soul is None:
+        print(f"{path} not found — run: claude-fafm-sdk init")
+        return 1
+    handle = _resolve_handle(soul, args)
+    if handle is None:
+        print("no namepoint linked — link one first:  claude-fafm-sdk namepoint link <handle>")
+        return 1
+
+    async def run() -> list:
+        return await Namepoint(handle).facts()  # public read, no key
+
+    try:
+        hosted = asyncio.run(run())
+    except NamepointUnavailable as e:
+        print(str(e))
+        return 1
+    local_texts = {f.text for f in soul.facts}
+    added = [f for f in hosted if f.text not in local_texts]
+    for f in added:
+        soul.etch(f.text, type=f.type, tags=f.tags or None)
+    soul.save(path)
+    print(f"⬇️  pulled {len(added)} new fact{'s' if len(added) != 1 else ''} from {handle} "
+          f"→ ./{path}  ({len(soul.facts)} total)")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="claude-fafm-sdk", description="Portable .fafm AI memory.")
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -191,12 +285,22 @@ def main(argv: list[str] | None = None) -> int:
     pf.add_argument("-f", "--file", default=DEFAULT_FILE)
     pf.set_defaults(func=cmd_forget)
 
-    pnp = sub.add_parser("namepoint", help="hosted namepoint ops (link → push/pull coming)")
+    pnp = sub.add_parser("namepoint", help="hosted namepoint ops (link / push / pull)")
     npsub = pnp.add_subparsers(dest="np_cmd", required=True)
     pnl = npsub.add_parser("link", help="link this soul to a claimed namepoint handle")
     pnl.add_argument("handle")
     pnl.add_argument("-f", "--file", default=DEFAULT_FILE)
     pnl.set_defaults(func=cmd_namepoint_link)
+
+    pnpush = npsub.add_parser("push", help="upload local facts to the namepoint (needs MCPAAS_API_KEY)")
+    pnpush.add_argument("-f", "--file", default=DEFAULT_FILE)
+    pnpush.add_argument("--handle", default=None, help="override the linked handle")
+    pnpush.set_defaults(func=cmd_namepoint_push)
+
+    pnpull = npsub.add_parser("pull", help="merge hosted facts into the local soul (public read)")
+    pnpull.add_argument("-f", "--file", default=DEFAULT_FILE)
+    pnpull.add_argument("--handle", default=None, help="override the linked handle")
+    pnpull.set_defaults(func=cmd_namepoint_pull)
 
     args = p.parse_args(argv)
     return int(args.func(args))
