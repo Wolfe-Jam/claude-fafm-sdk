@@ -24,6 +24,14 @@ pip3 install claude-fafm-sdk    # also works
 
 ## 30 seconds
 
+New here? One guided command takes you soul → live → cross-vendor:
+
+```sh
+uvx claude-fafm-sdk quickstart           # 🧬 guided first-run (the 30-second wow)
+```
+
+Or drive it yourself:
+
 ```sh
 uvx claude-fafm-sdk init                 # 🧬 create a portable soul
 claude-fafm-sdk etch "ships uv-first"    # write a memory

@@ -8,6 +8,7 @@ import os
 
 import pytest
 
+import claude_fafm_sdk.cli as cli
 from claude_fafm_sdk import Soul
 from claude_fafm_sdk.cli import main
 
@@ -114,6 +115,39 @@ def test_engine_cli_init_cta_nudges_zero_config(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "namepoint push" in out          # A: just push, auto-provisions
     assert "claim --email" in out           # B: keep it forever
+
+
+def test_engine_cli_wizard_noninteractive_creates_soul(tmp_path, monkeypatch, capsys):
+    # No subcommand → the guided wizard. In a non-tty it does the safe local steps
+    # and points at the manual command (never auto-pushes).
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli, "_is_interactive", lambda: False)
+    assert main([]) == 0
+    assert (tmp_path / "soul.fafm").exists()
+    assert "namepoint push" in capsys.readouterr().out
+
+
+def test_engine_cli_wizard_etches_first_memory_skips_push(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli, "_is_interactive", lambda: True)
+    answers = iter(["I prefer TypeScript", "n"])  # first memory, then decline going live
+    monkeypatch.setattr("builtins.input", lambda *a, **k: next(answers))
+    assert main(["quickstart"]) == 0
+    soul = Soul.load(tmp_path / "soul.fafm")
+    assert any(f.text == "I prefer TypeScript" for f in soul.facts)
+    assert "push when ready" in capsys.readouterr().out.lower()
+
+
+def test_brake_wizard_no_false_live_without_push(tmp_path, monkeypatch, capsys):
+    # Honesty: decline going live → must NOT claim the soul is live/readable
+    # (nothing was pushed). No network touched.
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli, "_is_interactive", lambda: True)
+    answers = iter(["", "n"])  # skip memory, decline live
+    monkeypatch.setattr("builtins.input", lambda *a, **k: next(answers))
+    assert main(["quickstart"]) == 0
+    out = capsys.readouterr().out.lower()
+    assert "live:" not in out and "read it back" not in out
 
 
 def test_engine_cli_namepoint_status_none(tmp_path, monkeypatch, capsys):

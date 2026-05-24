@@ -347,10 +347,92 @@ def cmd_namepoint_sync(args: argparse.Namespace) -> int:
     return 0
 
 
+def _is_interactive() -> bool:
+    return sys.stdin.isatty()
+
+
+def cmd_wizard(args: argparse.Namespace) -> int:
+    """Guided first-run: soul → first memory → live & cross-vendor → proof. The
+    30-second wow. Interactive in a terminal; in a non-tty it does the safe local
+    steps and points at the manual commands (never auto-pushes without a yes)."""
+    interactive = _is_interactive()
+
+    def ask(prompt: str, default: str = "") -> str:
+        if not interactive:
+            return default
+        try:
+            return input(prompt).strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return default
+
+    path = Path(args.file)
+    print("🧬  claude-fafm-sdk — give your AI a memory that follows you.\n")
+
+    # 1 · soul (create or reuse)
+    if path.exists():
+        soul = Soul.load(path)
+        print(f"Found your soul — ./{path} ({len(soul.facts)} fact{'s' if len(soul.facts) != 1 else ''}).")
+    else:
+        soul = Soul(_namepoint(getattr(args, "namepoint", None)))
+        soul.save(path)
+        print(f"Created ./{path} — a portable .fafm soul (offline, no account).")
+
+    # 2 · first memory
+    first = ask("\nWhat should your AI always remember about you?\n  (one line — Enter to skip) > ")
+    if first:
+        soul.etch(first, id="about", type="user", priority="high")
+        soul.save(path)
+        print(f"  etched ✓  ({len(soul.facts)} fact{'s' if len(soul.facts) != 1 else ''})")
+
+    # 3 · go live?
+    if not interactive:
+        print("\nSaved locally. Go live + cross-vendor anytime:  claude-fafm-sdk namepoint push")
+        return 0
+    go = ask(
+        "\nMake it live + readable by Grok, Claude & Gemini?\n"
+        "  (provisions a free namepoint, zero-config) [Y/n] > ",
+        "y",
+    )
+    if go.lower() not in ("", "y", "yes"):
+        print("\nSaved locally. Push when ready:  claude-fafm-sdk namepoint push")
+        return 0
+
+    # 4 · push (real — reuse the zero-config flow)
+    import asyncio
+
+    from . import identity as idmod
+    from .client import Namepoint, NamepointAuthRequired, NamepointUnavailable
+
+    print("\n  provisioning a namepoint + uploading…")
+    try:
+        ident, _fresh = _identity_for_write()
+        asyncio.run(Namepoint(ident.namepoint, api_key=ident.api_key).replace(soul.to_yaml()))
+    except (idmod.IdentityError, NamepointUnavailable, NamepointAuthRequired) as e:
+        print(f"\n  {e}")
+        return 1
+    _record_home(soul, path, ident.namepoint)
+
+    # 5 · the proof — see it read cross-vendor
+    raw = f"https://mcpaas.live/raw/{ident.namepoint}"
+    print(f"\n✨  Live: {ident.url}")
+    print(f"    Read it back, no login:  {raw}")
+    print("    Hand it to any model — paste this into Grok, Claude or Gemini:")
+    print(f"      Read {raw} and tell me what you know about me.")
+    print("\n    It's anonymous + session-like. Keep it forever:")
+    print("      claude-fafm-sdk namepoint claim --email you@example.com")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="claude-fafm-sdk", description="Portable .fafm AI memory.")
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
-    sub = p.add_subparsers(dest="cmd", required=True)
+    sub = p.add_subparsers(dest="cmd", required=False)
+
+    pq = sub.add_parser("quickstart", help="guided first-run: soul → live → cross-vendor (the 30-second wow)")
+    pq.add_argument("-f", "--file", default=DEFAULT_FILE)
+    pq.add_argument("-n", "--namepoint", default=None, help="override the namepoint handle")
+    pq.set_defaults(func=cmd_wizard)
 
     pi = sub.add_parser("init", help="create a local .fafm soul")
     pi.add_argument("-f", "--file", default=DEFAULT_FILE)
@@ -413,6 +495,9 @@ def main(argv: list[str] | None = None) -> int:
     pnsync.set_defaults(func=cmd_namepoint_sync)
 
     args = p.parse_args(argv)
+    if getattr(args, "func", None) is None:
+        # No subcommand → the guided first-run wizard.
+        return cmd_wizard(argparse.Namespace(file=DEFAULT_FILE, namepoint=None))
     return int(args.func(args))
 
 

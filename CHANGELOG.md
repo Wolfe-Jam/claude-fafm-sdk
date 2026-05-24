@@ -3,6 +3,17 @@
 All notable changes to `claude-fafm-sdk` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **Guided onboarding wizard** — `claude-fafm-sdk quickstart` (also runs with **no
+  subcommand**) walks the first run end to end: create a soul → capture a first
+  memory → go live on a zero-config namepoint → and *proves* it cross-vendor with a
+  keyless read-back URL (`mcpaas.live/raw/<handle>`) + a paste-ready "hand it to any
+  model" line. The 30-second wow. Non-interactive shells do the safe local steps and
+  point at `namepoint push` (never auto-push); stays honest — no "live" claim unless
+  a push actually happened.
+
 ## [0.3.0] — 2026-05-23
 
 ### Added
