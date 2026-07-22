@@ -184,7 +184,8 @@ Offline `Soul.recall` is the **source of truth for Fact-level ranking** in v1.0.
 
 - Higher priority first  
 - Then more recent `timestamp` (empty string sorts lowest)  
-- Then **higher insertion index** (breaks same-second ties so newest etch wins)
+- Then **higher insertion index** — the fact’s current **list position**, not “time of last etch”  
+- Same-second ties: higher index wins (typically last **appended** fact). Id-collision **update-in-place** keeps its slot and does not jump ahead of a later append with the same timestamp.
 
 ### 6.3 What is *not* rank SoT
 
@@ -192,9 +193,9 @@ Offline `Soul.recall` is the **source of truth for Fact-level ranking** in v1.0.
 |---------|----------|
 | `grok-faf-voice` `recall_for_prompt` | Injects full soul **body string** + header — not Fact-ordered list |
 | MCPaaS `get_soul` | Server text; not this contract’s local rank |
-| `fafm-engine` recall (today) | Priority + timestamp only — **no** insertion-index; may drift on same-second ties until aligned |
+| `fafm-engine` recall (today) | Sort key is `(priority, timestamp)` only. On **pure same-second** ties (equal priority+timestamp), stable `list.sort(reverse=True)` **preserves list order** (`a,b,c`), while the SDK’s insertion-index key **reverses** it (`c,b,a`). That is a real, pinned drift — not accidental parity. Cross-impl test: `tests/test_wjttc_recall_cross_impl.py`. |
 
-**v1.0:** document engine same-second drift if unfixed; do not redefine SDK rank to match voice prompt dump.
+**v1.0:** SDK local rank is SoT. Do not redefine SDK rank to match engine or voice. Engine may add an explicit insertion-index later to converge; until then the cross-impl test documents both orders.
 
 ---
 
@@ -261,7 +262,7 @@ Use this when coding Steps 2–6; not part of the prose contract but tracks comp
 - [x] Symmetric corpus tests (Soul ↔ FAFMemory) — `tests/test_wjttc_interop_corpus.py` (+ optional voice Path A/B)
 - [x] Residual top-level + memory unknown preserve (`Soul.extra` / `memory_extra`) — Step 2.5
 - [x] Schema-constrained `from_claude_dir()` + `from_file`/`to_file` aliases — Step 4
-- [x] Recall rank tests remain green (incl. same-second ties) — no Step 2 change
+- [x] Recall rank SoT verified (docstring + INTEROP + cross-impl test) — Step 6
 
 ---
 

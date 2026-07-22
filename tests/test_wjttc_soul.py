@@ -45,14 +45,36 @@ def test_engine_recall_ranks_priority_then_recency():
 
 def test_engine_recall_recency_breaks_same_second_ties():
     # Facts etched in one fast loop share a second-granularity timestamp; recall
-    # must still return them newest-first (insertion-index tiebreak), not the
-    # insertion order. Regression guard for the recency bug.
+    # must still return higher insertion-index first (last appended), not
+    # original list order alone without reverse rank.
     s = Soul("@me")
     s.etch("first", id="a")
     s.etch("second", id="b")
     s.etch("third", id="c")
     assert len({f.timestamp for f in s.facts}) == 1  # same second
-    assert [f.id for f in s.recall()] == ["c", "b", "a"]  # newest first
+    assert [f.id for f in s.recall()] == ["c", "b", "a"]  # last appended first
+
+
+def test_engine_recall_update_in_place_keeps_slot_on_same_second_tie():
+    """Id-collision etch keeps list position — does not become 'most recent'."""
+    s = Soul("@me")
+    s.add(Fact(text="v1", id="a", priority="standard", timestamp="2026-01-01T00:00:00Z"))
+    s.add(Fact(text="new", id="b", priority="standard", timestamp="2026-01-01T00:00:00Z"))
+    # Update a in place (same second) — slot stays index 0
+    s.add(Fact(text="v2", id="a", priority="standard", timestamp="2026-01-01T00:00:00Z"))
+    assert [f.id for f in s.facts] == ["a", "b"]
+    # b has higher insertion index → wins same-second tie over updated a
+    assert [f.id for f in s.recall()] == ["b", "a"]
+
+
+def test_engine_recall_filter_matrix_and_limit():
+    s = Soul("@me")
+    s.add(Fact(text="alpha project", id="p1", type="project", priority="high", tags=["x"], timestamp="2026-01-01T00:00:00Z"))
+    s.add(Fact(text="beta project", id="p2", type="project", priority="standard", tags=["x"], timestamp="2026-01-01T00:00:01Z"))
+    s.add(Fact(text="gamma ref", id="r1", type="reference", priority="critical", tags=["y"], timestamp="2026-01-01T00:00:02Z"))
+    hits = s.recall("project", tags=["x"], type="project", min_priority="standard", limit=1)
+    assert [f.id for f in hits] == ["p1"]  # high > standard; limit 1
+    assert s.recall("zzz") == []
 
 
 def test_engine_to_yaml_roundtrip_preserves_ids(tmp_path):

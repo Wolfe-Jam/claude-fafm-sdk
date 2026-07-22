@@ -334,9 +334,17 @@ class Soul:
         min_priority: str = "ephemeral",
         limit: int | None = None,
     ) -> list[Fact]:
-        """Deterministic recall: case-insensitive substring match on ``text``,
-        tag intersection, type equality, priority floor — ranked by priority then
-        recency. (Semantic/ranked recall is the full intel — see ``client.py``.)"""
+        """Deterministic recall: filter then rank (INTEROP §6).
+
+        Filters (all must pass when set): case-insensitive substring on
+        ``text``, tag set intersection, type equality, priority floor.
+
+        Rank (descending): ``(priority_rank, timestamp, insertion_index)``.
+        Insertion index is the fact's current position in the list — not
+        "time of last etch". Same-second ties: higher index wins (typically
+        last **appended** fact). An id-collision update keeps its slot, so it
+        does not jump ahead of a later append with the same timestamp.
+        """
         floor = PRIORITY_RANK.get(canonical_priority(min_priority), 0)
         q = (query or "").lower()
         want_tags = set(tags or [])
@@ -347,9 +355,7 @@ class Soul:
             and (type is None or f.type == type)
             and PRIORITY_RANK.get(f.priority, 1) >= floor
         ]
-        # Rank by priority, then recency. The insertion index breaks timestamp
-        # ties (second-granularity stamps collide in a fast write loop) so the
-        # most-recently-etched fact always wins — recency must be deterministic.
+        # Stable, deterministic: priority → timestamp → list position.
         indexed.sort(
             key=lambda t: (PRIORITY_RANK.get(t[1].priority, 1), t[1].timestamp or "", t[0]),
             reverse=True,
