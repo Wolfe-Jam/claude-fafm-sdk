@@ -261,11 +261,11 @@ def test_b_path_a_conformance_knowledge_via_soul_then_voice(tmp_path):
 
 
 def test_b_path_b_voice_to_file_then_soul_load(tmp_path):
-    """Voice raw to_file → Soul.load (SDK reads voice-touched bytes)."""
+    """Voice raw to_file → Soul.load (SDK reads voice-touched knowledge bytes)."""
     FAFMemory = pytest.importorskip("grok_faf_voice.memory").FAFMemory
 
     mem = FAFMemory.from_file(KNOWLEDGE_FAFM)
-    out = tmp_path / "voice-touched.fafm"
+    out = tmp_path / "voice-touched-knowledge.fafm"
     asyncio.run(mem.to_file(out))
 
     s = Soul.load(out)
@@ -273,6 +273,27 @@ def test_b_path_b_voice_to_file_then_soul_load(tmp_path):
     assert s.index == ["stack: TypeScript + Bun"]
     assert s.facts[0].id == "f1"
     assert s.facts[0].extra.get("confidence_score") == 0.9
+
+
+def test_b_path_b_voice_to_file_voice_profile_then_soul_load(tmp_path):
+    """Step 5 gap: voice to_file on *voice-profile* fixture → Soul.load.
+
+    Path B previously only exercised the knowledge fixture. to_file is raw
+    passthrough (no profile branching), but this combination had zero coverage.
+    """
+    FAFMemory = pytest.importorskip("grok_faf_voice.memory").FAFMemory
+
+    mem = FAFMemory.from_file(VOICE_FAFM)
+    out = tmp_path / "voice-touched-voice.fafm"
+    asyncio.run(mem.to_file(out))
+
+    s = Soul.load(out)
+    assert s.profile == "voice"
+    assert s.index == []
+    assert len(s.facts) == 2
+    assert s.facts[0].text == "Prefers concise answers"
+    assert s.facts[1].text == "Works in TypeScript"
+    assert s.facts[1].tags == ["stack"]
 
 
 def test_b_path_a_voice_fixture_via_soul_then_voice(tmp_path):
