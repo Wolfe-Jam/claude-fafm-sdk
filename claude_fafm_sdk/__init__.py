@@ -24,6 +24,7 @@ from .identity import (
     load_identity,
     provision_anonymous,
 )
+from .interop import from_claude_dir
 from .soul import PRIORITY_ORDER, Fact, Soul, canonical_priority
 
 __version__ = "0.4.0"
@@ -31,6 +32,7 @@ __version__ = "0.4.0"
 __all__ = [
     "Soul",
     "Fact",
+    "from_claude_dir",
     "Namepoint",
     "NamepointAuthRequired",
     "NamepointUnavailable",

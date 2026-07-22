@@ -220,6 +220,21 @@ Offline `Soul.recall` is the **source of truth for Fact-level ranking** in v1.0.
 
 **Converters** (`from_claude_dir`, etc.) MUST emit schema-constrained documents (`memory.facts`, not ad-hoc `memory.entries`). Proof scripts that emit `entries` are **not** the v1.0 target shape.
 
+### Claude Code memory → Soul (`from_claude_dir`)
+
+| Input | Output |
+|-------|--------|
+| Topic `*.md` with YAML frontmatter | One `Fact` when gates pass |
+| `metadata.type` | Only `user` \| `feedback` \| `project` \| `reference` (else skip) |
+| `name` | Fact `id` (required; missing → skip) |
+| `description` or `name` | Fact `text` |
+| File mtime | Fact `timestamp` (RFC3339-Z, second) |
+| `[[wikilinks]]` in body | Fact `links` (body text is **not** the fact text) |
+| `metadata.originSessionId` | `Fact.extra["provenance"] = ["session:…"]` — **not** a first-class Fact field in v1.0 |
+| Skip basenames | `MEMORY.md`, `MEMORY-FULL.md`, `README.md` |
+
+Returns a knowledge-profile `Soul` with `rebuild_index()` applied.
+
 ---
 
 ## 9. Explicitly out of v1.0 (v1.1)
@@ -245,7 +260,7 @@ Use this when coding Steps 2–6; not part of the prose contract but tracks comp
 - [x] `.index` property + `rebuild_index()` + `save(reindex=…)`
 - [x] Symmetric corpus tests (Soul ↔ FAFMemory) — `tests/test_wjttc_interop_corpus.py` (+ optional voice Path A/B)
 - [x] Residual top-level + memory unknown preserve (`Soul.extra` / `memory_extra`) — Step 2.5
-- [ ] Schema-constrained `from_claude_dir()`
+- [x] Schema-constrained `from_claude_dir()` + `from_file`/`to_file` aliases — Step 4
 - [x] Recall rank tests remain green (incl. same-second ties) — no Step 2 change
 
 ---

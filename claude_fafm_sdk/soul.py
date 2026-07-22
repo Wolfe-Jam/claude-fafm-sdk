@@ -275,6 +275,17 @@ class Soul:
         p.write_text(self.to_yaml(), encoding="utf-8")
         return p
 
+    # -- name parity with grok-faf-voice FAFMemory.from_file / to_file ------
+
+    @classmethod
+    def from_file(cls, path: str | Path) -> Soul:
+        """Alias of :meth:`load` — read a ``.fafm`` from disk."""
+        return cls.load(path)
+
+    def to_file(self, path: str | Path, *, reindex: bool = True) -> Path:
+        """Alias of :meth:`save` — write this soul as ``.fafm``."""
+        return self.save(path, reindex=reindex)
+
     def add(self, fact: Fact) -> Fact:
         """Insert or update a ``Fact`` by id, preserving its fields (incl. its
         original timestamp) — the merge primitive. ``etch`` builds on this."""
