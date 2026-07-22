@@ -32,6 +32,10 @@ fidelity, cross-vendor corpus, Claude Code memory converter, local recall SoT.
 - Structured save no longer drops `index` or invents empty memory subtrees.
 - Top-level residual fields (e.g. conformance `future_root_field`) survive roundtrip.
 
+### Tests
+- **WJTTC FINISH** — `tests/test_wjttc_finish.py` release gate for 1.0.x (version,
+  INTEROP, fidelity, converter, recall SoT, corpus).
+
 ## [0.4.0] — 2026-05-26
 
 ### Added

@@ -76,21 +76,43 @@ MCPAAS_API_KEY=... FAF_SOUL=you99 uv run pytest -k tyre
 
 ## 🅿️ 5 · PIT — evaluation / EVAL
 
-**Pass-through (this repo, today).** Evaluation is quality + behavioural assessment
-beyond pass/fail — e.g. recall-ranking quality, dedup correctness over large souls,
-perf, and merge quality when the server intel lands. No eval suite yet → recorded
-pass-through, not omitted. Fills in as the paid-intel / scale features arrive.
+**Pass-through (this repo, today) for behavioural eval at scale.** Quality bars
+beyond pass/fail (large-soul ranking, merge quality, perf) still fill as paid-intel
+lands. **Release finish** is separate — see FINISH below.
+
+## 🏁 FINISH — v1.0 release gate
+
+**Championship finish line for shipping 1.0.x.** One suite that fails the release
+if any v1.0 bar regresses (interop contract, document fidelity, converter, recall
+SoT, corpus). Complements the five tiers; does not replace them.
+
+| Bar | Source | Test module |
+|-----|--------|-------------|
+| Version `1.0.x` + single-source | hatch / `__version__` | `test_wjttc_finish.py` |
+| INTEROP.md present + key clauses | Step 1 | same |
+| Residual / index / profile default | Steps 2–2.5 | same |
+| `from_claude_dir` shape (facts not entries) | Step 4 | same |
+| Recall SoT (same-second + update-in-place) | Step 6 | same |
+| Conformance corpus load | Step 3 | same |
+
+```sh
+uv run pytest tests/test_wjttc_finish.py -q   # finish line only
+uv run pytest -q                              # full WJTTC + finish
+```
+
+**Filled at v1.0.0 (2026-07-22).** Re-run before every 1.0.x ship.
 
 ## Run
 
 ```sh
-uv run pytest                       # steps 1–3 (+ 4–5 if their creds/data are set)
+uv run pytest                       # steps 1–3 + FINISH (+ 4–5 if their creds/data are set)
+uv run pytest tests/test_wjttc_finish.py -q   # v1.0 finish gate only
 faf wjttc                           # tier-balance audit
 MCPAAS_API_KEY=... FAF_SOUL=you99 uv run pytest -k tyre   # step 4 (live)
 ```
 
 **5-step status:** 🛡️ BRAKE ✅ · ⚙️ ENGINE ✅ · 🌀 AERO ✅ · 🛞 TYRE ✅ (gated) ·
-🅿️ PIT ⏭️ pass-through.
+🅿️ PIT ⏭️ pass-through (scale eval) · 🏁 **FINISH ✅** (v1.0 release gate).
 
 > **faf-cli note:** `faf wjttc` recognises BRAKE/ENGINE/AERO/PIT but not the TYRE
 > keyword yet, so it shows the TYRE test as "untiered." That's a tool taxonomy gap
