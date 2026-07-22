@@ -27,7 +27,7 @@ from .identity import (
 from .interop import from_claude_dir
 from .soul import PRIORITY_ORDER, Fact, Soul, canonical_priority
 
-__version__ = "0.4.0"
+__version__ = "1.0.0"
 
 __all__ = [
     "Soul",

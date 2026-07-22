@@ -8,6 +8,8 @@ authors:
     orcid: "https://orcid.org/0009-0007-0801-3841"
     affiliation: "FAF Foundation"
 license: MIT
+version: "1.0.0"
+date-released: "2026-07-22"
 repository-code: "https://github.com/Wolfe-Jam/claude-fafm-sdk"
 url: "https://memory.faf.one"
 keywords:

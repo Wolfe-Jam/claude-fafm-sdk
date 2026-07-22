@@ -3,6 +3,35 @@
 All notable changes to `claude-fafm-sdk` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.0.0] — 2026-07-22
+
+Stable **v1.0** knowledge-profile `.fafm` baseline: interop contract, document
+fidelity, cross-vendor corpus, Claude Code memory converter, local recall SoT.
+
+### Added
+- **`INTEROP.md`** — v1.0 interop contract (timestamps, priority/rank, id collision,
+  unknown fields, index, scratchpad/ledger boundary, converters).
+- **Document fidelity on `Soul`:** load/save `index`; model `sessions` /
+  `preferences` / `custom`; `rebuild_index()`; `save(reindex=True)` default.
+- **Residual preserve (INTEROP §4):** `Soul.extra` / `memory_extra` for arbitrary
+  top-level and `memory` unknown keys (never overwrite modeled keys).
+- **`from_claude_dir(path) → Soul`** (`claude_fafm_sdk.interop`) — schema-constrained
+  Claude Code memory store → knowledge soul (`memory.facts` v1.1, not proof
+  `entries`). `originSessionId` → `Fact.extra["provenance"]`.
+- **`Soul.from_file` / `Soul.to_file`** — name parity with grok-faf-voice.
+- **Test corpus:** vendored faf conformance fixtures; optional live Path A/B with
+  `FAFMemory`; cross-impl same-second recall pin vs `fafm-engine`.
+
+### Changed
+- **Missing `profile` on load** defaults to **`voice`** (schema / INTEROP §1.2);
+  new `Soul()` still defaults to `knowledge`.
+- **`Soul.recall` docs** — rank is `(priority, timestamp, insertion_index)` where
+  insertion index is list position (update-in-place keeps slot); SDK is local rank SoT.
+
+### Fixed
+- Structured save no longer drops `index` or invents empty memory subtrees.
+- Top-level residual fields (e.g. conformance `future_root_field`) survive roundtrip.
+
 ## [0.4.0] — 2026-05-26
 
 ### Added
