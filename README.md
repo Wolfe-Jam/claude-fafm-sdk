@@ -8,6 +8,16 @@
 versions with your project and moves between models — instead of being locked to
 one vendor.
 
+### What's New in 1.0.0 — Interop Baseline
+
+Stable knowledge-profile `.fafm` baseline — INTEROP, document fidelity, `from_claude_dir`, cross-vendor tests, local recall SoT.
+
+- **INTEROP.md** — timestamps, priority/rank, unknown fields, index, converter rules  
+- **Document fidelity** — `index`, memory subtrees, residual field preserve  
+- **`from_claude_dir`** — Claude Code memory → knowledge `Soul` (`memory.facts` v1.1)  
+- **Cross-vendor corpus** + WJTTC FINISH release gate  
+- See [CHANGELOG](CHANGELOG.md) for the full list
+
 Offline-first: the local `Soul` works with no account. Connect a free
 **namepoint** for the full intel (semantic recall, smart-merge) at personal scale.
 

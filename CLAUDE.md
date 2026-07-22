@@ -1,3 +1,4 @@
+<!-- faf:start -->
 <!-- faf: claude-fafm-sdk | Python | library | Portable cross-vendor AI memory -->
 <!-- faf: claim=project.faf | family=FAF -->
 
@@ -24,4 +25,5 @@ Portable cross-vendor AI memory
 
 ---
 
-*STATUS: BI-SYNC ACTIVE — 2026-05-22T03:05:28.059Z*
+*STATUS: BI-SYNC ACTIVE — 2026-07-22T03:54:47.753Z*
+<!-- faf:end -->
