@@ -16,6 +16,7 @@ uv.lock
 # Personal souls — never commit someone's memory
 *.fafm
 !examples/*.fafm
+!tests/fixtures/fafm/*.fafm
 
 # FAF derived artifacts
 *.fafb
