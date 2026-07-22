@@ -171,21 +171,29 @@ def test_a4_sdk_writer_fresh_soul(tmp_path):
     assert doc["profile"] == "knowledge"
 
 
-def test_a5_unknown_fields_fact_extra_preserved(tmp_path):
-    """Fact-level unknown must roundtrip; top-level residual is a known gap."""
+def test_a5_unknown_fields_fact_and_doc_extra_preserved(tmp_path):
+    """INTEROP §4: fact extras + top-level residual keys survive Soul roundtrip."""
     s = Soul.load(UNKNOWN_FAFM)
     assert s.profile == "voice"
     assert s.facts[0].extra.get("experimental_attr") == 123
+    assert s.extra.get("future_root_field") == (
+        "a consumer MUST ignore this, not reject it"
+    )
 
     s.save(tmp_path / "u-rt.fafm", reindex=False)
     back = Soul.load(tmp_path / "u-rt.fafm")
     assert back.facts[0].extra.get("experimental_attr") == 123
+    assert back.extra.get("future_root_field") == (
+        "a consumer MUST ignore this, not reject it"
+    )
 
-    # Document the residual top-level gap (do not claim full §4 doc preserve yet).
-    original = yaml.safe_load(UNKNOWN_FAFM.read_text(encoding="utf-8"))
-    assert "future_root_field" in original
     rewritten = yaml.safe_load((tmp_path / "u-rt.fafm").read_text(encoding="utf-8"))
-    assert "future_root_field" not in rewritten
+    assert rewritten.get("future_root_field") == (
+        "a consumer MUST ignore this, not reject it"
+    )
+    # Modeled keys win if a residual tried to shadow them (not in fixture, but API).
+    assert rewritten["version"] == "1.1"
+    assert rewritten["namepoint"] == "@demo"
 
 
 @pytest.mark.skipif(not _LARGE_KNOWLEDGE.is_file(), reason="large soul fixture not adjacent")

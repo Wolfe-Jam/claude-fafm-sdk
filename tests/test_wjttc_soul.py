@@ -230,6 +230,35 @@ def test_brake_to_doc_always_emits_index_key():
     assert isinstance(doc["index"], list)
 
 
+def test_brake_top_level_and_memory_residual_roundtrip(tmp_path):
+    """Step 2.5: arbitrary unknowns under root and memory are preserved."""
+    (tmp_path / "res.fafm").write_text(
+        "version: '1.1'\nprofile: knowledge\nnamepoint: '@r'\n"
+        "created: '2026-01-01T00:00:00Z'\nlast_etched: '2026-01-01T00:00:00Z'\n"
+        "future_root_field: keep-me\n"
+        "memory:\n"
+        "  facts:\n    - text: hi\n"
+        "  sessions: []\n"
+        "  preferences: {}\n"
+        "  custom: {}\n"
+        "  experimental_bucket: {n: 1}\n",
+        encoding="utf-8",
+    )
+    s = Soul.load(tmp_path / "res.fafm")
+    assert s.extra["future_root_field"] == "keep-me"
+    assert s.memory_extra["experimental_bucket"] == {"n": 1}
+    s.save(tmp_path / "out.fafm", reindex=False)
+    back = Soul.load(tmp_path / "out.fafm")
+    assert back.extra["future_root_field"] == "keep-me"
+    assert back.memory_extra["experimental_bucket"] == {"n": 1}
+    doc = back.to_doc()
+    assert doc["future_root_field"] == "keep-me"
+    assert doc["memory"]["experimental_bucket"] == {"n": 1}
+    # Residual must not clobber modeled keys even if stuffed into extra.
+    s.extra["namepoint"] = "@hijack"
+    assert s.to_doc()["namepoint"] == "@r"
+
+
 def test_brake_namepoint_write_needs_a_key():
     # No key → loud, clear refusal that points to the free signup. Reads (pull)
     # need no key; only writes gate. (No network: the key check precedes any call.)

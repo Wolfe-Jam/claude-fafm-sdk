@@ -26,6 +26,22 @@ PRIORITY_ORDER = ("ephemeral", "standard", "high", "critical")
 PRIORITY_RANK = {p: i for i, p in enumerate(PRIORITY_ORDER)}
 _LEGACY_PRIORITY = {"low": "ephemeral", "medium": "standard"}
 
+# Top-level keys Soul models explicitly (INTEROP §1). Everything else is residual.
+_KNOWN_DOC_KEYS = frozenset(
+    {
+        "version",
+        "profile",
+        "namepoint",
+        "created",
+        "last_etched",
+        "retention",
+        "index",
+        "memory",
+    }
+)
+# Keys under memory that Soul models; other memory keys are residual.
+_KNOWN_MEMORY_KEYS = frozenset({"facts", "sessions", "preferences", "custom"})
+
 
 def _utcnow() -> str:
     return datetime.datetime.now(tz=datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -115,6 +131,8 @@ class Soul:
         sessions: list[Any] | None = None,
         preferences: dict[str, Any] | None = None,
         custom: dict[str, Any] | None = None,
+        extra: dict[str, Any] | None = None,
+        memory_extra: dict[str, Any] | None = None,
     ) -> None:
         self.namepoint = namepoint
         self.profile = profile
@@ -130,6 +148,9 @@ class Soul:
         self._sessions: list[Any] = list(sessions or [])
         self._preferences: dict[str, Any] = dict(preferences or {})
         self._custom: dict[str, Any] = dict(custom or {})
+        # Residual unknowns (INTEROP §4) — preserved on load→save.
+        self._extra: dict[str, Any] = dict(extra or {})
+        self._memory_extra: dict[str, Any] = dict(memory_extra or {})
 
     @property
     def facts(self) -> list[Fact]:
@@ -152,12 +173,23 @@ class Soul:
     def custom(self) -> dict[str, Any]:
         return self._custom
 
+    @property
+    def extra(self) -> dict[str, Any]:
+        """Top-level document keys not in the known model (INTEROP §4)."""
+        return self._extra
+
+    @property
+    def memory_extra(self) -> dict[str, Any]:
+        """``memory`` keys beyond facts/sessions/preferences/custom."""
+        return self._memory_extra
+
     @classmethod
     def load(cls, path: str | Path) -> Soul:
         """Load a ``.fafm`` soul from disk.
 
         Missing ``profile`` defaults to ``voice`` (schema / INTEROP §1.2).
         Loads ``index`` and ``memory.sessions|preferences|custom`` when present.
+        Unknown top-level and memory keys are preserved (INTEROP §4 residual).
         """
         doc = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
         if not isinstance(doc, dict):
@@ -165,6 +197,12 @@ class Soul:
         memory = doc.get("memory") or {}
         if not isinstance(memory, dict):
             memory = {}
+        doc_extra = {
+            k: copy.deepcopy(v) for k, v in doc.items() if k not in _KNOWN_DOC_KEYS
+        }
+        memory_extra = {
+            k: copy.deepcopy(v) for k, v in memory.items() if k not in _KNOWN_MEMORY_KEYS
+        }
         soul = cls(
             namepoint=doc.get("namepoint", Path(path).stem),
             profile=doc.get("profile", "voice"),
@@ -175,13 +213,28 @@ class Soul:
             sessions=copy.deepcopy(list(memory.get("sessions") or [])),
             preferences=copy.deepcopy(dict(memory.get("preferences") or {})),
             custom=copy.deepcopy(dict(memory.get("custom") or {})),
+            extra=doc_extra,
+            memory_extra=memory_extra,
         )
         soul.last_etched = doc.get("last_etched", soul.created)
         return soul
 
     def to_doc(self) -> dict[str, Any]:
-        """The ``.fafm`` v1.1 document this soul serializes to."""
-        return {
+        """The ``.fafm`` v1.1 document this soul serializes to.
+
+        Known keys first, then residual top-level extras (INTEROP §4).
+        Residual keys never overwrite modeled keys.
+        """
+        memory: dict[str, Any] = {
+            "facts": [f.to_obj() for f in self._facts],
+            "sessions": copy.deepcopy(self._sessions),
+            "preferences": copy.deepcopy(self._preferences),
+            "custom": copy.deepcopy(self._custom),
+        }
+        for k, v in self._memory_extra.items():
+            if k not in _KNOWN_MEMORY_KEYS:
+                memory[k] = copy.deepcopy(v)
+        doc: dict[str, Any] = {
             "version": "1.1",
             "profile": self.profile,
             "namepoint": self.namepoint,
@@ -189,13 +242,12 @@ class Soul:
             "last_etched": self.last_etched,
             "retention": self.retention,
             "index": list(self._index),
-            "memory": {
-                "facts": [f.to_obj() for f in self._facts],
-                "sessions": copy.deepcopy(self._sessions),
-                "preferences": copy.deepcopy(self._preferences),
-                "custom": copy.deepcopy(self._custom),
-            },
+            "memory": memory,
         }
+        for k, v in self._extra.items():
+            if k not in _KNOWN_DOC_KEYS:
+                doc[k] = copy.deepcopy(v)
+        return doc
 
     def to_yaml(self) -> str:
         """Serialize to the ``.fafm`` (vnd.fafm+yaml) document text."""

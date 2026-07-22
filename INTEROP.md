@@ -141,7 +141,9 @@ Aligned with schema guidance: unknown fields are permitted.
 |-------|--------|
 | **Fact object** | **Preserve** unknown keys through load → in-memory `extra` → save |
 | **Document / `memory` subtrees** | **Preserve** unknown and optional subtrees present on load when saving |
-| **Strip (forbidden in v1.0 structured save)** | Silently dropping `index`, or blanking non-empty `sessions` / `preferences` / `custom` |
+| **Top-level residual keys** | Keys outside the known set (`version`/`profile`/`namepoint`/`created`/`last_etched`/`retention`/`index`/`memory`) live in `Soul.extra` and are re-emitted after modeled keys; residuals never overwrite modeled keys |
+| **`memory` residual keys** | Keys outside `facts`/`sessions`/`preferences`/`custom` live in `Soul.memory_extra` and are re-emitted under `memory` |
+| **Strip (forbidden in v1.0 structured save)** | Silently dropping `index`, residual unknowns, or blanking non-empty `sessions` / `preferences` / `custom` |
 
 **Voice note:** `FAFMemory.from_file` / `to_file` are raw text I/O (byte-identical). They do not interpret unknowns; they pass the file through. Structured writers (`Soul`) must still honor this section.
 
@@ -242,6 +244,7 @@ Use this when coding Steps 2–6; not part of the prose contract but tracks comp
 - [x] Missing `profile` on load → `voice`
 - [x] `.index` property + `rebuild_index()` + `save(reindex=…)`
 - [x] Symmetric corpus tests (Soul ↔ FAFMemory) — `tests/test_wjttc_interop_corpus.py` (+ optional voice Path A/B)
+- [x] Residual top-level + memory unknown preserve (`Soul.extra` / `memory_extra`) — Step 2.5
 - [ ] Schema-constrained `from_claude_dir()`
 - [x] Recall rank tests remain green (incl. same-second ties) — no Step 2 change
 
