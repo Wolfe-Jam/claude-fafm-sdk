@@ -92,6 +92,10 @@ def test_brake_save_is_fafm_v11_shape():
     doc = s.to_doc()
     assert doc["version"] == "1.1"
     assert "facts" in doc["memory"]
+    assert "index" in doc
+    assert isinstance(doc["memory"]["sessions"], list)
+    assert isinstance(doc["memory"]["preferences"], dict)
+    assert isinstance(doc["memory"]["custom"], dict)
 
 
 def test_brake_bare_string_facts_load(tmp_path):
@@ -102,6 +106,128 @@ def test_brake_bare_string_facts_load(tmp_path):
     )
     s = Soul.load(tmp_path / "bare.fafm")
     assert s.facts[0].text == "just a string"
+
+
+# ---------------------------------------------------------------------------
+# Step 2 — document fidelity (INTEROP §1.2 / §1.4 / §5)
+# ---------------------------------------------------------------------------
+
+# Voice-shaped knowledge fixture (mirrors grok-faf-voice test_local_souls).
+_KNOWLEDGE_FAFM = """\
+version: "1.1"
+profile: "knowledge"
+namepoint: "@claude-code:wolfejam"
+created: "2026-05-21T00:00:00Z"
+last_etched: "2026-05-21T09:00:00Z"
+retention: "forever"
+index:
+  - "precision-is-power — named tiers beat umbrella terms"
+memory:
+  facts:
+    - text: "Replace lossy umbrella terms with named tiers."
+      id: "precision-is-power"
+      type: "feedback"
+      priority: "high"
+      tags: ["copy", "doctrine"]
+      links: ["no-made-up-numbers"]
+      timestamp: "2026-05-20T00:00:00Z"
+      source: "session note"
+  sessions:
+    - id: "s1"
+      note: "kept"
+  preferences:
+    tone: "terse"
+  custom:
+    project: "fafm"
+"""
+
+
+def test_brake_missing_profile_defaults_to_voice(tmp_path):
+    """INTEROP §1.2: absent profile on load → voice (schema default)."""
+    (tmp_path / "noprofile.fafm").write_text(
+        "version: '1.1'\nnamepoint: '@x'\n"
+        "created: '2026-01-01T00:00:00Z'\nlast_etched: '2026-01-01T00:00:00Z'\n"
+        "memory:\n  facts:\n    - just a string\n",
+        encoding="utf-8",
+    )
+    s = Soul.load(tmp_path / "noprofile.fafm")
+    assert s.profile == "voice"
+    # Constructor for *new* knowledge souls still defaults to knowledge.
+    assert Soul("@me").profile == "knowledge"
+
+
+def test_brake_index_load_and_empty_when_absent(tmp_path):
+    p = tmp_path / "k.fafm"
+    p.write_text(_KNOWLEDGE_FAFM, encoding="utf-8")
+    s = Soul.load(p)
+    assert s.index == ["precision-is-power — named tiers beat umbrella terms"]
+
+    (tmp_path / "v.fafm").write_text(
+        "version: '1.1'\nprofile: voice\nnamepoint: '@v'\n"
+        "created: '2026-01-01T00:00:00Z'\nlast_etched: '2026-01-01T00:00:00Z'\n"
+        "memory:\n  facts:\n    - hi\n",
+        encoding="utf-8",
+    )
+    v = Soul.load(tmp_path / "v.fafm")
+    assert v.index == []
+
+
+def test_brake_memory_subtrees_load_and_roundtrip(tmp_path):
+    """sessions/preferences/custom are modeled — not reinvented empty on save."""
+    p = tmp_path / "k.fafm"
+    p.write_text(_KNOWLEDGE_FAFM, encoding="utf-8")
+    s = Soul.load(p)
+    assert s.sessions == [{"id": "s1", "note": "kept"}]
+    assert s.preferences == {"tone": "terse"}
+    assert s.custom == {"project": "fafm"}
+
+    out = tmp_path / "out.fafm"
+    s.save(out, reindex=False)
+    back = Soul.load(out)
+    assert back.sessions == [{"id": "s1", "note": "kept"}]
+    assert back.preferences == {"tone": "terse"}
+    assert back.custom == {"project": "fafm"}
+    assert back.index == ["precision-is-power — named tiers beat umbrella terms"]
+
+
+def test_brake_index_preserved_when_reindex_false(tmp_path):
+    p = tmp_path / "k.fafm"
+    p.write_text(_KNOWLEDGE_FAFM, encoding="utf-8")
+    s = Soul.load(p)
+    s.etch("new fact without touching index rebuild path", id="extra")
+    s.save(tmp_path / "kept.fafm", reindex=False)
+    back = Soul.load(tmp_path / "kept.fafm")
+    assert back.index == ["precision-is-power — named tiers beat umbrella terms"]
+    assert back.get_fact("extra") is not None
+
+
+def test_brake_save_reindexes_by_default(tmp_path):
+    p = tmp_path / "k.fafm"
+    p.write_text(_KNOWLEDGE_FAFM, encoding="utf-8")
+    s = Soul.load(p)
+    s.etch("second durable fact", id="second-fact")
+    s.save(tmp_path / "rebuilt.fafm")  # reindex=True default
+    back = Soul.load(tmp_path / "rebuilt.fafm")
+    assert any(line.startswith("second-fact — ") for line in back.index)
+    assert any(line.startswith("precision-is-power — ") for line in back.index)
+
+
+def test_brake_rebuild_index_formula():
+    s = Soul("@me")
+    s.add(Fact(text="short", id="a"))
+    s.add(Fact(text="x" * 100))  # no id → '?'
+    lines = s.rebuild_index(width=80)
+    assert lines[0] == "a — short"
+    assert lines[1].startswith("? — ")
+    assert len(lines[1].split(" — ", 1)[1]) == 80
+
+
+def test_brake_to_doc_always_emits_index_key():
+    s = Soul("@me")
+    s.etch("a fact", id="f1")
+    doc = s.to_doc()
+    assert "index" in doc
+    assert isinstance(doc["index"], list)
 
 
 def test_brake_namepoint_write_needs_a_key():

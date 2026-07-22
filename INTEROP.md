@@ -156,9 +156,10 @@ Aligned with schema guidance: unknown fields are permitted.
 | Consumer SoT | `grok-faf-voice.FAFMemory.index` → `doc.get("index") or []` |
 | Rebuild formula (when recomputing) | `f"{id or '?'} — {text[:80]}"` per fact, same order as `facts` (matches `fafm-engine`) |
 | Load | Read `index` if present |
-| Save | **MUST NOT drop** a present index; either **preserve as loaded** or **rebuild** via the formula (implementation may choose rebuild-on-save; default intent = keep knowledge souls useful) |
+| Save | **MUST NOT drop** index; always emit `"index"` (list, possibly empty) |
+| Rebuild on save | `save(reindex=True)` **default** rebuilds via the formula; `reindex=False` preserves loaded/hand-tuned index |
 
-**P0 defect (0.4.0):** `Soul.to_doc()` omits `index` entirely. v1.0 must fix this before claiming lossless knowledge interop.
+**P0 defect (0.4.0):** `Soul.to_doc()` omitted `index` and never modeled memory subtrees — fixed in Step 2 (document fidelity).
 
 ---
 
@@ -236,13 +237,13 @@ Offline `Soul.recall` is the **source of truth for Fact-level ranking** in v1.0.
 
 Use this when coding Steps 2–6; not part of the prose contract but tracks compliance:
 
-- [ ] `INTEROP.md` committed (this file)
-- [ ] `Soul` load/save preserves `index` + memory subtrees
-- [ ] Missing `profile` on load → `voice`
-- [ ] `.index` property + optional `rebuild_index()`
+- [x] `INTEROP.md` committed (this file)
+- [x] `Soul` load/save preserves `index` + memory subtrees
+- [x] Missing `profile` on load → `voice`
+- [x] `.index` property + `rebuild_index()` + `save(reindex=…)`
 - [ ] Symmetric corpus tests (Soul ↔ FAFMemory)
 - [ ] Schema-constrained `from_claude_dir()`
-- [ ] Recall rank tests remain green (incl. same-second ties)
+- [x] Recall rank tests remain green (incl. same-second ties) — no Step 2 change
 
 ---
 

@@ -7,10 +7,13 @@ baseline — it works offline with no account. Semantic/ranked recall and
 LLM smart-merge are the *full intel*, served via a namepoint (see ``client.py``).
 
 Format-compatible with `fafm-engine` and `grok-faf-voice` — one format, never a fork.
+
+Interop contract: see ``INTEROP.md`` (v1.0).
 """
 
 from __future__ import annotations
 
+import copy
 import datetime
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -108,6 +111,10 @@ class Soul:
         facts: list[Fact] | None = None,
         retention: str = "forever",
         created: str | None = None,
+        index: list[str] | None = None,
+        sessions: list[Any] | None = None,
+        preferences: dict[str, Any] | None = None,
+        custom: dict[str, Any] | None = None,
     ) -> None:
         self.namepoint = namepoint
         self.profile = profile
@@ -118,24 +125,56 @@ class Soul:
         self._by_id: dict[str, int] = {
             f.id: i for i, f in enumerate(self._facts) if f.id is not None
         }
+        # Document fidelity (INTEROP §1.4 / §5) — soul-owned copies.
+        self._index: list[str] = list(index or [])
+        self._sessions: list[Any] = list(sessions or [])
+        self._preferences: dict[str, Any] = dict(preferences or {})
+        self._custom: dict[str, Any] = dict(custom or {})
 
     @property
     def facts(self) -> list[Fact]:
         return self._facts
 
+    @property
+    def index(self) -> list[str]:
+        """Top-level one-line index (knowledge profile). Empty list if none."""
+        return self._index
+
+    @property
+    def sessions(self) -> list[Any]:
+        return self._sessions
+
+    @property
+    def preferences(self) -> dict[str, Any]:
+        return self._preferences
+
+    @property
+    def custom(self) -> dict[str, Any]:
+        return self._custom
+
     @classmethod
     def load(cls, path: str | Path) -> Soul:
-        """Load a ``.fafm`` soul from disk."""
+        """Load a ``.fafm`` soul from disk.
+
+        Missing ``profile`` defaults to ``voice`` (schema / INTEROP §1.2).
+        Loads ``index`` and ``memory.sessions|preferences|custom`` when present.
+        """
         doc = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
         if not isinstance(doc, dict):
             raise ValueError("soul is not a YAML mapping")
         memory = doc.get("memory") or {}
+        if not isinstance(memory, dict):
+            memory = {}
         soul = cls(
             namepoint=doc.get("namepoint", Path(path).stem),
-            profile=doc.get("profile", "knowledge"),
+            profile=doc.get("profile", "voice"),
             facts=[Fact.from_obj(f) for f in (memory.get("facts") or [])],
             retention=doc.get("retention", "forever"),
             created=doc.get("created"),
+            index=list(doc.get("index") or []),
+            sessions=copy.deepcopy(list(memory.get("sessions") or [])),
+            preferences=copy.deepcopy(dict(memory.get("preferences") or {})),
+            custom=copy.deepcopy(dict(memory.get("custom") or {})),
         )
         soul.last_etched = doc.get("last_etched", soul.created)
         return soul
@@ -149,11 +188,12 @@ class Soul:
             "created": self.created,
             "last_etched": self.last_etched,
             "retention": self.retention,
+            "index": list(self._index),
             "memory": {
                 "facts": [f.to_obj() for f in self._facts],
-                "sessions": [],
-                "preferences": {},
-                "custom": {},
+                "sessions": copy.deepcopy(self._sessions),
+                "preferences": copy.deepcopy(self._preferences),
+                "custom": copy.deepcopy(self._custom),
             },
         }
 
@@ -161,8 +201,24 @@ class Soul:
         """Serialize to the ``.fafm`` (vnd.fafm+yaml) document text."""
         return yaml.safe_dump(self.to_doc(), sort_keys=False, allow_unicode=True, width=100)
 
-    def save(self, path: str | Path) -> Path:
-        """Write the soul to disk as ``.fafm`` (vnd.fafm+yaml)."""
+    def rebuild_index(self, width: int = 80) -> list[str]:
+        """Regenerate the top-level one-line index from current facts.
+
+        Formula matches ``fafm-engine`` / INTEROP §5:
+        ``f"{id or '?'} — {text[:width]}"``.
+        """
+        self._index = [f"{f.id or '?'} — {f.text[:width]}" for f in self._facts]
+        return self._index
+
+    def save(self, path: str | Path, *, reindex: bool = True) -> Path:
+        """Write the soul to disk as ``.fafm`` (vnd.fafm+yaml).
+
+        When ``reindex`` is True (default), rebuilds ``index`` from facts before
+        write so the index stays true after etch/delete. Pass ``reindex=False``
+        to preserve a loaded or hand-tuned index.
+        """
+        if reindex:
+            self.rebuild_index()
         p = Path(path)
         p.write_text(self.to_yaml(), encoding="utf-8")
         return p
