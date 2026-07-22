@@ -65,6 +65,8 @@ That's the whole offline loop — no account, no server.
 More in **[examples/](examples/)** — portability + a real cross-vendor roundtrip
 (SDK writes `.fafm`, grok-faf-voice reads it back).
 
+**Interop contract (v1.0):** [INTEROP.md](INTEROP.md) — timestamps, priority/rank, id collision, unknown fields, `index`, scratchpad/ledger boundary.
+
 ## Go cross-vendor (a namepoint)
 
 A **namepoint** is your soul's live address — `mcpaas.live/<handle>` — readable by
