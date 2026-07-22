@@ -241,7 +241,7 @@ Use this when coding Steps 2–6; not part of the prose contract but tracks comp
 - [x] `Soul` load/save preserves `index` + memory subtrees
 - [x] Missing `profile` on load → `voice`
 - [x] `.index` property + `rebuild_index()` + `save(reindex=…)`
-- [ ] Symmetric corpus tests (Soul ↔ FAFMemory)
+- [x] Symmetric corpus tests (Soul ↔ FAFMemory) — `tests/test_wjttc_interop_corpus.py` (+ optional voice Path A/B)
 - [ ] Schema-constrained `from_claude_dir()`
 - [x] Recall rank tests remain green (incl. same-second ties) — no Step 2 change
 
