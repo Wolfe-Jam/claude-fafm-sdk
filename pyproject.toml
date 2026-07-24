@@ -25,6 +25,7 @@ namepoint = [
 ]
 dev = [
     "pytest>=8.0",
+    "hypothesis>=6.0",  # WJTTC merge + N-version property suites
     "ruff>=0.6",
     "types-PyYAML>=6.0",
     "mypy>=1.0",
