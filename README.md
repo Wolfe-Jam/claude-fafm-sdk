@@ -8,7 +8,7 @@
 versions with your project and moves between models — instead of being locked to
 one vendor.
 
-### What's New in 1.1.0 — Mergeable Memory
+### What's New in 1.1.1 — Mergeable Memory
 
 Two offline `.fafm` souls now **merge and converge** — a coordinator-free,
 order-independent join. A **state-based CvRDT** under a frozen encoding lock, verified

@@ -3,6 +3,39 @@
 All notable changes to `claude-fafm-sdk` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.1.1] — 2026-07-24
+
+Packaging + reproducibility fix for the 1.1.0 Soul-Packet merge (1.1.0 was
+TestPyPI-only; this is the first production merge release). **No API or
+merge-logic change** — `merge_souls` and the CvRDT semantics are identical.
+
+### Fixed
+- **`hypothesis` added to dev extras** — the merge property + N-version suites
+  import it; `pip install -e ".[dev]"` now runs them from a source checkout.
+- **Reproduction receipt corrected** — the prior one-liner assumed you were already
+  in a repo checkout with test deps. The receipt below is actually runnable by a
+  stranger: an install-proof from the published wheel, plus the full property suite
+  from a source checkout (tests are not shipped inside the wheel).
+
+### Verification
+Install proof (from the published wheel):
+```
+pip install claude-fafm-sdk==1.1.1
+python -c "from claude_fafm_sdk import merge_souls, __version__; print(__version__, merge_souls)"
+```
+Full property-suite reproduction (from source — tests are not in the wheel):
+```
+git clone https://github.com/Wolfe-Jam/claude-fafm-sdk && cd claude-fafm-sdk
+git checkout v1.1.1
+pip install -e ".[dev]"
+pytest tests/test_wjttc_merge_crdt.py tests/test_nversion_differential.py
+```
+- **We claim:** the merge is a state-based **CvRDT** under a frozen encoding lock,
+  verified by two independent implementations (N-version).
+- **We do NOT claim:** sealed-packet send / CRC (next release), offline delete
+  convergence (grow/update-only in v1), or verification across all AIs beyond the
+  N-version process.
+
 ## [1.1.0] — 2026-07-24
 
 Soul-Packet **merge**: a coordinator-free, order-independent `Soul` join — the
@@ -29,11 +62,8 @@ namepoint loop is unchanged.
   implementations.
 
 ### Verification
-Reproducible receipt — a stranger runs it against the published artifact:
-```
-pip install claude-fafm-sdk==1.1.0
-pytest tests/test_wjttc_merge_crdt.py tests/test_nversion_differential.py
-```
+Reproducible receipt: see **1.1.1** — the receipt command was corrected there
+(1.1.0 was TestPyPI-only). Claims for this feature:
 - **We claim:** the merge is a state-based **CvRDT** under a frozen encoding lock,
   verified by two independent implementations (N-version).
 - **We do NOT claim:** sealed-packet send / CRC (next release), offline delete
