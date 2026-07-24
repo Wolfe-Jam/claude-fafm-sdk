@@ -3,6 +3,43 @@
 All notable changes to `claude-fafm-sdk` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.1.0] — 2026-07-24
+
+Soul-Packet **merge**: a coordinator-free, order-independent `Soul` join — the
+mergeable half of portable memory. Two independent implementations, verified against
+each other, converge on every input. The local v1.0 knowledge-profile / etch / recall /
+namepoint loop is unchanged.
+
+### Added
+- **`claude_fafm_sdk.merge`** — `merge_souls(a, b) -> Soul`, a **state-based CvRDT**
+  (product of join-semilattices): commutative · associative · idempotent, with no
+  coordinator. Facts merge as an LWW-Element-Map (by id, field-level) + G-Set (id-less,
+  by normalized text); `tags`/`links` set-union; soul-level maps LWW-per-key; `sessions`
+  G-Set. **Grow/update-only.**
+- **`MERGE.md`** — the frozen merge spec (encoding lock, §8a gap-decisions G1–G5, §8
+  property oracle).
+- **Property + differential test suites** — WJTTC merge laws (commutative / associative /
+  idempotent + adversarial cases) and an **N-version differential** between two
+  independent implementations, under logical equality.
+
+### Fixed
+- **Empty-string fact timestamps normalize to absent** at the `Fact` data model
+  (`timestamp="" → None`), so bareness and `content_hash` use the same absence predicate
+  and merged fact order (hence sealed bytes, later) is deterministic across
+  implementations.
+
+### Verification
+Reproducible receipt — a stranger runs it against the published artifact:
+```
+pip install claude-fafm-sdk==1.1.0
+pytest tests/test_wjttc_merge_crdt.py tests/test_nversion_differential.py
+```
+- **We claim:** the merge is a state-based **CvRDT** under a frozen encoding lock,
+  verified by two independent implementations (N-version).
+- **We do NOT claim:** sealed-packet send / CRC (next release), offline delete
+  convergence (grow/update-only in v1), or verification across all AIs beyond the
+  N-version process.
+
 ## [1.0.0] — 2026-07-22
 
 Stable **v1.0** knowledge-profile `.fafm` baseline: interop contract, document

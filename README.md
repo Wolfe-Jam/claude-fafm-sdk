@@ -8,14 +8,16 @@
 versions with your project and moves between models — instead of being locked to
 one vendor.
 
-### What's New in 1.0.0 — Interop Baseline
+### What's New in 1.1.0 — Mergeable Memory
 
-Stable knowledge-profile `.fafm` baseline — INTEROP, document fidelity, `from_claude_dir`, cross-vendor tests, local recall SoT.
+Two offline `.fafm` souls now **merge and converge** — a coordinator-free,
+order-independent join. A **state-based CvRDT** under a frozen encoding lock, verified
+by two independent implementations (an N-version differential). **Grow/update-only** in
+v1; sealed send (`.fafm` packet + CRC) is next.
 
-- **INTEROP.md** — timestamps, priority/rank, unknown fields, index, converter rules  
-- **Document fidelity** — `index`, memory subtrees, residual field preserve  
-- **`from_claude_dir`** — Claude Code memory → knowledge `Soul` (`memory.facts` v1.1)  
-- **Cross-vendor corpus** + WJTTC FINISH release gate  
+- **`merge_souls(a, b)`** — commutative · associative · idempotent, no coordinator  
+- **MERGE.md** — the frozen merge spec (encoding lock + property oracle)  
+- **1.0.0 baseline** — INTEROP, document fidelity, `from_claude_dir`, cross-vendor tests  
 - See [CHANGELOG](CHANGELOG.md) for the full list
 
 Offline-first: the local `Soul` works with no account. Connect a free

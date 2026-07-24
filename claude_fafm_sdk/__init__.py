@@ -25,9 +25,10 @@ from .identity import (
     provision_anonymous,
 )
 from .interop import from_claude_dir
+from .merge import merge_souls
 from .soul import PRIORITY_ORDER, Fact, Soul, canonical_priority
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 __all__ = [
     "Soul",
@@ -44,5 +45,6 @@ __all__ = [
     "load_identity",
     "PRIORITY_ORDER",
     "canonical_priority",
+    "merge_souls",
     "__version__",
 ]

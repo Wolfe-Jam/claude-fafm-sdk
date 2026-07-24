@@ -17,6 +17,27 @@ def test_engine_etch_and_recall():
     assert [f.text for f in s.recall("uv")] == ["ships uv-first"]
 
 
+def test_empty_timestamp_is_absent_everywhere():
+    """Empty-timestamp pin: ts="" is ABSENT — normalized at the Fact data model so it
+    never reaches content_hash / to_obj / a sealed packet (both impls inherit)."""
+    from claude_fafm_sdk.merge import merge_souls
+
+    # 1. direct construction normalizes "" -> None (fully bare emits a plain string)
+    f = Fact(text="x", timestamp="")
+    assert f.timestamp is None
+    assert f.to_obj() == "x"
+
+    # 2. from_obj (load path) normalizes too
+    g = Fact.from_obj({"text": "x", "id": "k", "timestamp": ""})
+    assert g.timestamp is None
+    assert "timestamp" not in g.to_obj()
+
+    # 3. merge output never carries an empty-string timestamp
+    a = Soul("@t", facts=[Fact(text="y", id="k", timestamp="")])
+    b = Soul("@t", facts=[Fact(text="y", id="k")])
+    assert merge_souls(a, b).get_fact("k").timestamp is None
+
+
 def test_engine_id_dedup_updates_in_place():
     s = Soul("@me")
     s.etch("draft", id="x")

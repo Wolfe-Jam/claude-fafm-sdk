@@ -27,9 +27,9 @@ FAFM = FIXTURES / "fafm"
 # ---------------------------------------------------------------------------
 
 
-def test_finish_version_is_1_0():
-    """v1.0 release gate: package is 1.0.x and single-sourced."""
-    assert claude_fafm_sdk.__version__.startswith("1.0")
+def test_finish_version_is_1_1():
+    """v1.1 release gate: package is 1.1.x and single-sourced."""
+    assert claude_fafm_sdk.__version__.startswith("1.1")
     assert version("claude-fafm-sdk") == claude_fafm_sdk.__version__
 
 
@@ -44,17 +44,19 @@ def test_finish_interop_contract_on_disk():
 
 
 def test_finish_public_exports():
-    """v1.0 public API surface is importable."""
+    """v1.1 public API surface is importable (incl. the merge feature)."""
     from claude_fafm_sdk import (
         Fact,
         Soul,
         __version__,
         canonical_priority,
         from_claude_dir,
+        merge_souls,
     )
 
-    assert __version__.startswith("1.0")
+    assert __version__.startswith("1.1")
     assert callable(from_claude_dir)
+    assert callable(merge_souls)
     assert Soul.from_file is not None
     assert Fact is not None
     assert canonical_priority("low") == "ephemeral"

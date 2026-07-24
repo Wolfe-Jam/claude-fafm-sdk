@@ -69,6 +69,14 @@ class Fact:
     source: str | None = None
     extra: dict[str, Any] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        # Empty-string timestamp is ABSENT (Soul-Packet encoding-lock pin). Normalize at
+        # the data model so every construction — load, add, merge emit — agrees and
+        # the empty-ts content_hash/order divergence can't arise at the source. Both
+        # merge impls inherit this because they build Facts through this dataclass.
+        if self.timestamp == "":
+            self.timestamp = None
+
     @classmethod
     def from_obj(cls, obj: Any) -> Fact:
         """Build a Fact from a bare string or a ``{text, ...}`` mapping."""
