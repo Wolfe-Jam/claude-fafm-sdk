@@ -22,9 +22,21 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export PYTHONPATH="${ROOT}${PYTHONPATH:+:$PYTHONPATH}"
 
+# Prefer active venv / python3 — bare `python` is often missing on macOS.
+if [[ -x "${ROOT}/.venv/bin/python" ]]; then
+  PY="${ROOT}/.venv/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
+  PY=python3
+elif command -v python >/dev/null 2>&1; then
+  PY=python
+else
+  echo "tier2_receipt: no python interpreter found" >&2
+  exit 127
+fi
+
 cli() {
   # Same entry as the installed console script — exit codes are the falsifier contract.
-  python -c 'import sys; from claude_fafm_sdk.cli import main; raise SystemExit(main(sys.argv[1:]))' "$@"
+  "$PY" -c 'import sys; from claude_fafm_sdk.cli import main; raise SystemExit(main(sys.argv[1:]))' "$@"
 }
 
 WORKDIR="${TMPDIR:-/tmp}/fafm-tier2-$$"
@@ -53,7 +65,7 @@ OUT="$(cli recall -f "$B" tier2-proof || true)"
 echo "$OUT" | grep -q "$FACT"
 
 # ── Falsifier 1: CRC reject + no clobber ─────────────────────────────────────
-python -c "
+"$PY" -c "
 p = bytearray(open('$PKT','rb').read())
 p[16] ^= 0xFF
 open('$BAD','wb').write(p)
@@ -67,12 +79,12 @@ test "$RC" -ne 0
 AFTER="$(wc -c < "$B" | tr -d ' ')"
 test "$BEFORE" = "$AFTER"
 # local fact count still 1 (the merged A fact only — no corruption path)
-COUNT="$(python -c "from claude_fafm_sdk.soul import Soul; print(len(Soul.load('$B').facts))")"
+COUNT="$("$PY" -c "from claude_fafm_sdk.soul import Soul; print(len(Soul.load('$B').facts))")"
 test "$COUNT" = "1"
 
 # ── Falsifier 2: double-merge no-op (idempotent) ────────────────────────────
 cli merge -f "$B" "$PKT"
-COUNT2="$(python -c "from claude_fafm_sdk.soul import Soul; print(len(Soul.load('$B').facts))")"
+COUNT2="$("$PY" -c "from claude_fafm_sdk.soul import Soul; print(len(Soul.load('$B').facts))")"
 test "$COUNT2" = "1"
 
 # ── Falsifier 3: both-ways converge ─────────────────────────────────────────
@@ -99,7 +111,7 @@ cli merge -f "$AB" "$PA"
 cli merge -f "$AB" "$PB"
 cli merge -f "$BA" "$PB"
 cli merge -f "$BA" "$PA"
-python -c "
+"$PY" -c "
 from claude_fafm_sdk.merge import souls_equal
 from claude_fafm_sdk.soul import Soul
 assert souls_equal(Soul.load('$AB'), Soul.load('$BA')), 'both-ways diverge'

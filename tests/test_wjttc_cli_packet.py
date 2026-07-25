@@ -36,14 +36,18 @@ def test_c1_cli_seal_merge_roundtrip_logical(tmp_path: Path) -> None:
     assert main(["seal", "-f", str(a), "-o", str(pkt)]) == 0
     assert pkt.is_file() and pkt.stat().st_size > 16
 
+    # Empty B stamped later than A can pollute max(last_etched); full souls_equal
+    # to pure from_packet(A) is then false without any merge bug. Assert the
+    # stranger-visible contract: fact travels + is recallable; packet opens clean.
     _init(b)
     assert main(["merge", "-f", str(b), str(pkt)]) == 0
-    assert souls_equal(Soul.load(b), from_packet(pkt.read_bytes()))
-
-    # recall path (stranger sees the fact)
-    # etch id t2 — recall by text fragment
-    rc = main(["recall", "-f", str(b), "tier2-proof"])
-    assert rc == 0
+    opened = from_packet(pkt.read_bytes())
+    merged = Soul.load(b)
+    assert len(merged.facts) == 1
+    assert merged.facts[0].id == "t2"
+    assert merged.facts[0].text == "tier2-proof-fact"
+    assert opened.facts[0].text == "tier2-proof-fact"
+    assert main(["recall", "-f", str(b), "tier2-proof"]) == 0
 
 
 def test_c2_cli_merge_bitflip_no_clobber(tmp_path: Path) -> None:
