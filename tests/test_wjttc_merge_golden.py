@@ -67,6 +67,27 @@ def test_golden_memory_extra_key_union():
         assert set(m.memory_extra) == {"k1", "k2"}, name
 
 
+def test_golden_memory_extra_same_key_lww_newer_wins():
+    # opaque LWW-per-key CONFLICT (not just union): same key, {v,t} form →
+    # the newer timestamp wins, commutatively. (Grok 25 nit 1.)
+    a = Soul(NP, memory_extra={"k1": {"v": "old", "t": "2026-01-01T00:00:00Z"}})
+    b = Soul(NP, memory_extra={"k1": {"v": "new", "t": "2026-02-01T00:00:00Z"}})
+    for name, m in _both(a, b).items():
+        assert m.memory_extra["k1"]["v"] == "new", name
+    for name, m in _both(b, a).items():  # commutative
+        assert m.memory_extra["k1"]["v"] == "new", name
+
+
+def test_golden_soul_extra_union_and_lww():
+    # soul-level `extra` shares the opaque-map join: disjoint keys union +
+    # same-key LWW by timestamp. (Grok 25 nit 2 — dedicated `extra` golden.)
+    a = Soul(NP, extra={"k1": "v1", "shared": {"v": "old", "t": "2026-01-01T00:00:00Z"}})
+    b = Soul(NP, extra={"k2": "v2", "shared": {"v": "new", "t": "2026-02-01T00:00:00Z"}})
+    for name, m in _both(a, b).items():
+        assert set(m.extra) == {"k1", "k2", "shared"}, name
+        assert m.extra["shared"]["v"] == "new", name
+
+
 def test_golden_empty_ts_plus_residual_combo():
     # empty-ts fact (T2 → absent) alongside every residual field → deterministic,
     # and all impls converge on the same logical soul.
