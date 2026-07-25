@@ -64,6 +64,18 @@ _opaque = st.dictionaries(
     max_size=2,
 )
 
+# residual join-semilattice fields (Phase-4 N4 coverage): the oracle already
+# compares these, but the generators never populated them — so sessions (G1
+# G-Set), retention (G4 max-register), and memory_extra / soul-level extra
+# (opaque LWW maps) went untested until now.
+_retention = st.sampled_from(["forever", "30d", "session", "ephemeral"])
+_sessions = st.lists(
+    st.fixed_dictionaries(
+        {"id": st.sampled_from(["s1", "s2"]), "n": st.sampled_from([1, 2])}
+    ),
+    max_size=3,
+)
+
 
 @st.composite
 def _soul(draw) -> Soul:
@@ -71,8 +83,12 @@ def _soul(draw) -> Soul:
         NP,
         profile=draw(st.sampled_from(["voice", "knowledge"])),
         facts=draw(st.lists(_fact(), max_size=4)),
+        retention=draw(_retention),
+        sessions=draw(_sessions),
         preferences=draw(_opaque),
         custom=draw(_opaque),
+        extra=draw(_opaque),
+        memory_extra=draw(_opaque),
     )
 
 
