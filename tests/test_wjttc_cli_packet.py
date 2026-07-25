@@ -1,4 +1,4 @@
-"""WJTTC — T4 CLI seal/merge + no-clobber (28-T4-SCOPE C1–C4).
+"""WJTTC — CLI seal/merge + no-clobber.
 
 Thin shell tests: call ``cli.main([...])`` (same exit-code contract the
 receipt script relies on). Library packet correctness lives in

@@ -26,9 +26,17 @@ from .identity import (
 )
 from .interop import from_claude_dir
 from .merge import merge_souls
+from .packet import (
+    PacketError,
+    from_packet,
+    from_packet_file,
+    merge_packet,
+    to_packet,
+    to_packet_file,
+)
 from .soul import PRIORITY_ORDER, Fact, Soul, canonical_priority
 
-__version__ = "1.1.1"
+__version__ = "1.2.0"
 
 __all__ = [
     "Soul",
@@ -46,5 +54,11 @@ __all__ = [
     "PRIORITY_ORDER",
     "canonical_priority",
     "merge_souls",
+    "to_packet",
+    "from_packet",
+    "merge_packet",
+    "to_packet_file",
+    "from_packet_file",
+    "PacketError",
     "__version__",
 ]

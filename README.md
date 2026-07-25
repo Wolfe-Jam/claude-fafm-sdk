@@ -8,16 +8,17 @@
 versions with your project and moves between models — instead of being locked to
 one vendor.
 
-### What's New in 1.1.1 — Mergeable Memory
+### What's New in 1.2.0 — Sendable Memory
 
-Two offline `.fafm` souls now **merge and converge** — a coordinator-free,
-order-independent join. A **state-based CvRDT** under a frozen encoding lock, verified
-by two independent implementations (an N-version differential). **Grow/update-only** in
-v1; sealed send (`.fafm` packet + CRC) is next.
+1.1 made souls **mergeable**; 1.2 makes them **sendable**. Seal a soul into a
+CRC-integrity `.fafmp` packet, send the file, merge on arrival — no coordinator.
+The merge is the same dual-implementation-verified **CvRDT**; this adds the
+transport around it. **Grow/update-only** in v1 (CRC = integrity, not auth).
 
-- **`merge_souls(a, b)`** — commutative · associative · idempotent, no coordinator  
-- **MERGE.md** — the frozen merge spec (encoding lock + property oracle)  
-- **1.0.0 baseline** — INTEROP, document fidelity, `from_claude_dir`, cross-vendor tests  
+- **`to_packet` / `from_packet` / `merge_packet`** — seal → send → merge, fail-closed  
+- **CLI `seal` / `merge`** + a 60-second Tier-2 receipt you can run and falsify  
+- **`merge_souls(a, b)`** — the CvRDT join (commutative · associative · idempotent)  
+- **PACKET.md / MERGE.md** — the packet format + the frozen merge spec  
 - See [CHANGELOG](CHANGELOG.md) for the full list
 
 Offline-first: the local `Soul` works with no account. Connect a free

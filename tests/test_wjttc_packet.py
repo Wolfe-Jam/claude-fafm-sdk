@@ -1,4 +1,4 @@
-"""WJTTC — Soul-Packet seal / open / CRC (T3-min gate, 20-T3-SCOPE P1–P7).
+"""WJTTC — Soul-Packet seal / open / CRC (packet gate, P1–P7).
 
 Transport only — merge stays ``merge_souls``. Round-trips the FULL residual
 state (reuses the extended `_soul` strategy) so sessions / retention /

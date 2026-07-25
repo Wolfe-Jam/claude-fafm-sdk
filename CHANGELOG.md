@@ -3,6 +3,49 @@
 All notable changes to `claude-fafm-sdk` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.2.0] — 2026-07-25
+
+**Sendable Memory.** 1.1 made souls *mergeable*; 1.2 makes them *sendable* — seal
+a soul into a CRC-integrity `.fafmp` packet, send the file, merge on arrival. The
+merge is unchanged (the dual-implementation-verified CvRDT); this adds the
+transport around it.
+
+### Added
+- **`claude_fafm_sdk.packet`** — top-level `to_packet` / `from_packet` /
+  `merge_packet` (+ `to_packet_file` / `from_packet_file`, `PacketError`). An
+  `SPK1` packet is a 16-byte little-endian header + canonical `.fafm` YAML,
+  sealed with **CRC-32** over the payload. `merge_packet(local, data)` is exactly
+  `merge_souls(local, from_packet(data))` — ingest reuses the CvRDT.
+- **CLI `seal` / `merge`** — `claude-fafm-sdk seal -f soul.fafm -o out.fafmp` and
+  `claude-fafm-sdk merge -f soul.fafm packet.fafmp`. File transport only (not
+  namepoint push/pull). Fail-closed: a bad packet exits non-zero and never
+  rewrites the local soul.
+- **Byte-identity** — two seals of the same logical state are byte-for-byte equal
+  (canonical dump by construction); a **wire-hex golden** pins the exact bytes as
+  a cross-language interop anchor.
+- **`PACKET.md` / `RECEIPT.md`** — packet format + the 60-second proof.
+- **Hardening** — extended residual-field coverage + goldens, and an
+  encoding-lock fuzz suite over `normalize_text` / `content_hash` / the `{v,t}`
+  wrapper.
+
+### Verification
+Install proof (from the published wheel):
+```
+uvx claude-fafm-sdk quickstart              # or: pip install claude-fafm-sdk==1.2.0
+python -c "from claude_fafm_sdk import to_packet, from_packet, merge_packet; print('sealable')"
+```
+The **60-second Tier-2 receipt** — a stranger runs the whole arc and falsifies it:
+```
+git clone https://github.com/Wolfe-Jam/claude-fafm-sdk && cd claude-fafm-sdk
+git checkout v1.2.0 && uv run --extra dev pytest tests/test_wjttc_packet.py tests/test_wjttc_cli_packet.py
+bash examples/tier2_receipt.sh              # etch→seal→send→merge→recall + CRC/idempotent/both-ways falsifiers
+```
+- **We claim:** memory travels as a CRC-integrity-sealed `.fafmp` packet and
+  ingests through the same state-based CvRDT; seals are byte-deterministic.
+- **We do NOT claim:** authentication or encryption (CRC = integrity, not auth);
+  offline delete convergence (grow/update-only); the full FAFB binary or an IANA
+  media type (`SPK1` is the v0 packet seal, distinct from `FAFB`).
+
 ## [1.1.1] — 2026-07-24
 
 Packaging + reproducibility fix for the 1.1.0 Soul-Packet merge (1.1.0 was
