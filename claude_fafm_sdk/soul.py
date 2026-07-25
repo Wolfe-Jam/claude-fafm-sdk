@@ -192,14 +192,15 @@ class Soul:
         return self._memory_extra
 
     @classmethod
-    def load(cls, path: str | Path) -> Soul:
-        """Load a ``.fafm`` soul from disk.
+    def from_doc(cls, doc: Any, *, namepoint_fallback: str | None = None) -> Soul:
+        """Build a Soul from a parsed ``.fafm`` mapping — the shared deserialize
+        path used by :meth:`load` (from disk) and the packet ``from_packet``.
 
         Missing ``profile`` defaults to ``voice`` (schema / INTEROP §1.2).
         Loads ``index`` and ``memory.sessions|preferences|custom`` when present.
         Unknown top-level and memory keys are preserved (INTEROP §4 residual).
+        ``namepoint`` must be present in ``doc`` unless a fallback is given.
         """
-        doc = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
         if not isinstance(doc, dict):
             raise ValueError("soul is not a YAML mapping")
         memory = doc.get("memory") or {}
@@ -211,8 +212,11 @@ class Soul:
         memory_extra = {
             k: copy.deepcopy(v) for k, v in memory.items() if k not in _KNOWN_MEMORY_KEYS
         }
+        namepoint = doc.get("namepoint") or namepoint_fallback
+        if not namepoint:
+            raise ValueError("soul doc missing 'namepoint'")
         soul = cls(
-            namepoint=doc.get("namepoint", Path(path).stem),
+            namepoint=namepoint,
             profile=doc.get("profile", "voice"),
             facts=[Fact.from_obj(f) for f in (memory.get("facts") or [])],
             retention=doc.get("retention", "forever"),
@@ -226,6 +230,12 @@ class Soul:
         )
         soul.last_etched = doc.get("last_etched", soul.created)
         return soul
+
+    @classmethod
+    def load(cls, path: str | Path) -> Soul:
+        """Load a ``.fafm`` soul from disk (see :meth:`from_doc`)."""
+        doc = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+        return cls.from_doc(doc, namepoint_fallback=Path(path).stem)
 
     def to_doc(self) -> dict[str, Any]:
         """The ``.fafm`` v1.1 document this soul serializes to.

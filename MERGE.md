@@ -6,6 +6,8 @@
 
 **Label:** the dual-implementation differential is green and independently re-verified ⇒ unqualified **"CvRDT"** (state-based; two independent implementations under encoding lock v1.1 + the §8a gap-decisions + the empty-timestamp pin). Always **grow/update-only** — deletes-converge is **never** claimed in v1 (§6).
 
+**Packet transport (T3):** a sealed `.fafmp` packet ingests through this same merge — `merge_packet(local, data) = merge_souls(local, from_packet(data))`. The seal is transport only; the merge is unchanged. See `PACKET.md`.
+
 ---
 
 ## 1. Type
