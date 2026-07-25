@@ -18,7 +18,14 @@ from pathlib import Path
 
 from . import __version__
 from .identity import Identity
-from .packet import PACKET_SUFFIX, PacketError, merge_packet, to_packet_file
+from .packet import (
+    PACKET_SUFFIX,
+    PacketError,
+    from_packet_file,
+    merge_packet,
+    to_packet_file,
+)
+from .receipt import run_receipt
 from .soul import Soul
 
 DEFAULT_FILE = "soul.fafm"
@@ -155,6 +162,47 @@ def cmd_seal(args: argparse.Namespace) -> int:
         return 1
     print(f"sealed → {out}  (SPK1 + CRC-32; integrity only, not auth)")
     return 0
+
+
+def cmd_open(args: argparse.Namespace) -> int:
+    """Open a ``.fafmp`` packet → write ``.fafm`` and/or print a summary.
+
+    Fail closed: a bad packet raises ``PacketError`` → exit 1, no partial write.
+    Thin over ``from_packet_file``. Integrity only — not authentication.
+    """
+    pkt = Path(args.packet)
+    if not pkt.exists():
+        print(f"packet not found: {pkt}")
+        return 1
+    try:
+        soul = from_packet_file(pkt)
+    except PacketError as e:
+        print(f"open failed: {e}")
+        return 1
+    if args.output:
+        try:
+            soul.save(Path(args.output))
+        except OSError as e:
+            print(f"open failed: {e}")
+            return 1
+        print(f"opened {pkt} → {args.output}  ({len(soul.facts)} facts)")
+    else:
+        n = len(soul.facts)
+        print(f"{pkt}: namepoint {soul.namepoint} · profile {soul.profile} · {n} fact{'s' if n != 1 else ''}")
+        for f in soul.facts[:10]:
+            print(f"  {_fmt_fact(f)}")
+        if n > 10:
+            print(f"  … and {n - 10} more")
+    return 0
+
+
+def cmd_receipt(args: argparse.Namespace) -> int:
+    """Run the 60-second Tier-2 proof in-process (Provable Receipt).
+
+    etch → seal → send a file → merge → recall, plus the falsifiers (CRC reject,
+    double-merge idempotent, both-ways converge). Exit 0 GREEN; non-zero on fail.
+    """
+    return run_receipt(as_json=args.json)
 
 
 def cmd_merge(args: argparse.Namespace) -> int:
@@ -554,6 +602,21 @@ def main(argv: list[str] | None = None) -> int:
     pm.add_argument("packet", help="path to the .fafmp packet")
     pm.add_argument("-f", "--file", default=DEFAULT_FILE, help="local .fafm soul to merge into")
     pm.set_defaults(func=cmd_merge)
+
+    po = sub.add_parser(
+        "open",
+        help="open a .fafmp packet → write .fafm or print a summary (fail-closed)",
+    )
+    po.add_argument("packet", help="path to the .fafmp packet")
+    po.add_argument("-o", "--output", default=None, help="write the opened soul to this .fafm (else print a summary)")
+    po.set_defaults(func=cmd_open)
+
+    prcpt = sub.add_parser(
+        "receipt",
+        help="run the 60-second Tier-2 proof (etch→seal→send→merge→recall + falsifiers)",
+    )
+    prcpt.add_argument("--json", action="store_true", help="machine-readable PASS/FAIL output")
+    prcpt.set_defaults(func=cmd_receipt)
 
     pnp = sub.add_parser("namepoint", help="hosted namepoint ops (claim / status / push / pull / sync)")
     npsub = pnp.add_subparsers(dest="np_cmd", required=True)

@@ -3,6 +3,38 @@
 All notable changes to `claude-fafm-sdk` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.3.0] — 2026-07-26
+
+**Provable Receipt.** 1.2 made memory *sendable*; 1.3 makes the proof *one
+command*. The 60-second Tier-2 arc — etch → seal → send a file → merge → recall,
+plus the falsifiers — now ships **inside the wheel**, so a stranger runs it with
+no git clone. The merge is unchanged (the dual-implementation-verified CvRDT).
+
+### Added
+- **`claude-fafm-sdk receipt`** — runs the full Tier-2 proof in-process:
+  etch→seal→send→merge→recall + **CRC-reject**, **double-merge idempotent**, and
+  **both-ways converge** falsifiers. Exit 0 + a GREEN banner; non-zero if any
+  check fails. `--json` for machine-readable PASS/FAIL. Works via
+  **`uvx claude-fafm-sdk receipt`** from the published package.
+- **`claude-fafm-sdk open`** — open a `.fafmp` packet → write `.fafm` or print a
+  summary. Fail-closed: a bad packet exits non-zero, no partial write. Thin over
+  `from_packet`.
+
+### Verification
+The receipt is now the proof — one command, no clone:
+```
+uvx claude-fafm-sdk receipt          # → TIER-2 RECEIPT GREEN (exit 0)
+uvx claude-fafm-sdk receipt --json   # machine-readable
+```
+- **We claim:** the 60-second Tier-2 proof runs from the published package via
+  `uvx claude-fafm-sdk receipt`; CLI `open` is fail-closed; same SPK1 / CvRDT
+  semantics as 1.2 (no merge-law change).
+- **We do NOT claim:** authentication or encryption (CRC = integrity, not auth —
+  see 1.4); delete convergence (grow/update-only — see 1.5); session-id LWW, the
+  full FAFB binary, or an IANA packet media type; that the receipt re-proves the
+  dual-implementation merge (it exercises transport + ingest; dual-impl remains
+  the 1.1 story).
+
 ## [1.2.0] — 2026-07-25
 
 **Sendable Memory.** 1.1 made souls *mergeable*; 1.2 makes them *sendable* — seal

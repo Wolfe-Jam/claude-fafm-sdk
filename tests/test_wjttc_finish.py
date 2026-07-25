@@ -27,9 +27,9 @@ FAFM = FIXTURES / "fafm"
 # ---------------------------------------------------------------------------
 
 
-def test_finish_version_is_1_2():
-    """v1.2 release gate: package is 1.2.x and single-sourced."""
-    assert claude_fafm_sdk.__version__.startswith("1.2")
+def test_finish_version_is_1_3():
+    """v1.3 release gate: package is 1.3.x and single-sourced."""
+    assert claude_fafm_sdk.__version__.startswith("1.3")
     assert version("claude-fafm-sdk") == claude_fafm_sdk.__version__
 
 
@@ -44,7 +44,7 @@ def test_finish_interop_contract_on_disk():
 
 
 def test_finish_public_exports():
-    """v1.2 public API surface is importable (incl. merge + packet features)."""
+    """v1.3 public API surface is importable (merge + packet + receipt CLI)."""
     from claude_fafm_sdk import (
         Fact,
         PacketError,
@@ -57,12 +57,15 @@ def test_finish_public_exports():
         merge_souls,
         to_packet,
     )
+    from claude_fafm_sdk.cli import cmd_open, cmd_receipt
+    from claude_fafm_sdk.receipt import run_receipt
 
-    assert __version__.startswith("1.2")
+    assert __version__.startswith("1.3")
     assert callable(from_claude_dir)
     assert callable(merge_souls)
     assert callable(to_packet) and callable(from_packet) and callable(merge_packet)
     assert issubclass(PacketError, ValueError)
+    assert callable(run_receipt) and callable(cmd_receipt) and callable(cmd_open)
     assert Soul.from_file is not None
     assert Fact is not None
     assert canonical_priority("low") == "ephemeral"

@@ -8,17 +8,20 @@
 versions with your project and moves between models — instead of being locked to
 one vendor.
 
-### What's New in 1.2.0 — Sendable Memory
+### What's New in 1.3.0 — Provable Receipt
 
-1.1 made souls **mergeable**; 1.2 makes them **sendable**. Seal a soul into a
-CRC-integrity `.fafmp` packet, send the file, merge on arrival — no coordinator.
-The merge is the same dual-implementation-verified **CvRDT**; this adds the
-transport around it. **Grow/update-only** in v1 (CRC = integrity, not auth).
+1.2 made memory **sendable**; 1.3 makes the proof **one command**. The 60-second
+Tier-2 arc — etch → seal → send → merge → recall, plus the falsifiers — now ships
+**in the wheel**, so anyone runs it with no git clone:
 
-- **`to_packet` / `from_packet` / `merge_packet`** — seal → send → merge, fail-closed  
-- **CLI `seal` / `merge`** + a 60-second Tier-2 receipt you can run and falsify  
-- **`merge_souls(a, b)`** — the CvRDT join (commutative · associative · idempotent)  
-- **PACKET.md / MERGE.md** — the packet format + the frozen merge spec  
+```sh
+uvx claude-fafm-sdk receipt          # → TIER-2 RECEIPT GREEN (exit 0)
+```
+
+- **`receipt`** — the whole arc + CRC-reject / double-merge / both-ways falsifiers, one command  
+- **`open`** — open a `.fafmp` packet → `.fafm` or a summary (fail-closed)  
+- **Sendable (1.2)** — `to_packet` / `merge_packet` + CLI `seal` / `merge`  
+- **Mergeable (1.1)** — `merge_souls`, the dual-implementation-verified CvRDT  
 - See [CHANGELOG](CHANGELOG.md) for the full list
 
 Offline-first: the local `Soul` works with no account. Connect a free

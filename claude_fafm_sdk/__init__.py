@@ -36,7 +36,7 @@ from .packet import (
 )
 from .soul import PRIORITY_ORDER, Fact, Soul, canonical_priority
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 __all__ = [
     "Soul",
