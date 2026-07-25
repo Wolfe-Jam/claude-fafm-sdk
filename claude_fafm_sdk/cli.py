@@ -1,9 +1,13 @@
-"""claude-fafm-sdk CLI — init / etch / recall a portable ``.fafm`` soul.
+"""claude-fafm-sdk CLI — init / etch / recall / seal / merge a portable ``.fafm`` soul.
 
 Honest by design: ``init`` creates a real local soul and tells the truth about
 it — portable `.fafm`, the open format other tools (grok-faf-voice, fafm-engine)
 read. It does NOT claim a live readback or a hosted namepoint that isn't there
 yet. The magic is real; we don't fake it.
+
+``seal`` / ``merge`` are local file transport (``.fafmp`` Soul-Packet). CRC is
+integrity only — not authentication. Fail closed: bad packets never clobber the
+local soul. Not the hosted namepoint path.
 """
 
 from __future__ import annotations
@@ -14,6 +18,7 @@ from pathlib import Path
 
 from . import __version__
 from .identity import Identity
+from .packet import PACKET_SUFFIX, PacketError, merge_packet, to_packet_file
 from .soul import Soul
 
 DEFAULT_FILE = "soul.fafm"
@@ -126,6 +131,65 @@ def cmd_forget(args: argparse.Namespace) -> int:
         return 1
     soul.save(path)
     print(f"forgot {args.id!r} → ./{path}  ({len(soul.facts)} left)")
+    return 0
+
+
+def cmd_seal(args: argparse.Namespace) -> int:
+    """Seal a local ``.fafm`` soul into a CRC-sealed ``.fafmp`` packet (file transport).
+
+    Integrity only — not authentication. See ``PACKET.md``.
+    """
+    path = Path(args.file)
+    if not path.exists():
+        print(f"{path} not found — run: claude-fafm-sdk init")
+        return 1
+    out = Path(args.output) if args.output else path.with_suffix(PACKET_SUFFIX)
+    try:
+        soul = Soul.load(path)
+        to_packet_file(soul, out)
+    except PacketError as e:
+        print(f"seal failed: {e}")
+        return 1
+    except (OSError, ValueError) as e:
+        print(f"seal failed: {e}")
+        return 1
+    print(f"sealed → {out}  (SPK1 + CRC-32; integrity only, not auth)")
+    return 0
+
+
+def cmd_merge(args: argparse.Namespace) -> int:
+    """Ingest a ``.fafmp`` packet into a local soul via the CvRDT merge.
+
+    Fail closed: ``PacketError`` (or namepoint mismatch) → non-zero exit and the
+    local soul file is **not** rewritten. Same-namepoint rule as ``merge_souls``.
+    """
+    path = Path(args.file)
+    pkt = Path(args.packet)
+    if not path.exists():
+        print(f"{path} not found — run: claude-fafm-sdk init")
+        return 1
+    if not pkt.exists():
+        print(f"packet not found: {pkt}")
+        return 1
+    try:
+        local = Soul.load(path)
+        # In-memory only until success — never clobber local on bad packet.
+        merged = merge_packet(local, pkt.read_bytes())
+    except PacketError as e:
+        print(f"merge failed: {e}")
+        return 1
+    except ValueError as e:
+        # e.g. different namepoints — oracle rule, not a transport error
+        print(f"merge failed: {e}")
+        return 1
+    except OSError as e:
+        print(f"merge failed: {e}")
+        return 1
+    merged.save(path)
+    print(
+        f"merged packet → ./{path}  ({len(merged.facts)} fact"
+        f"{'s' if len(merged.facts) != 1 else ''}; CvRDT ingest)"
+    )
     return 0
 
 
@@ -469,6 +533,27 @@ def main(argv: list[str] | None = None) -> int:
     pf.add_argument("id")
     pf.add_argument("-f", "--file", default=DEFAULT_FILE)
     pf.set_defaults(func=cmd_forget)
+
+    ps = sub.add_parser(
+        "seal",
+        help="seal a local .fafm into a CRC-sealed .fafmp packet (file transport; integrity only)",
+    )
+    ps.add_argument("-f", "--file", default=DEFAULT_FILE, help="local .fafm soul (default: soul.fafm)")
+    ps.add_argument(
+        "-o",
+        "--output",
+        default=None,
+        help=f"output packet path (default: <soul>{PACKET_SUFFIX})",
+    )
+    ps.set_defaults(func=cmd_seal)
+
+    pm = sub.add_parser(
+        "merge",
+        help="ingest a .fafmp packet into a local soul (CvRDT; fail-closed, no clobber on bad packet)",
+    )
+    pm.add_argument("packet", help="path to the .fafmp packet")
+    pm.add_argument("-f", "--file", default=DEFAULT_FILE, help="local .fafm soul to merge into")
+    pm.set_defaults(func=cmd_merge)
 
     pnp = sub.add_parser("namepoint", help="hosted namepoint ops (claim / status / push / pull / sync)")
     npsub = pnp.add_subparsers(dest="np_cmd", required=True)

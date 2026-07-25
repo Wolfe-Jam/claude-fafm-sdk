@@ -73,7 +73,19 @@ errors without swallowing unrelated `ValueError`s.
 
 No "best effort" partial soul, ever.
 
+## CLI (T4)
+
+```sh
+claude-fafm-sdk seal  [-f soul.fafm] [-o out.fafmp]
+claude-fafm-sdk merge [-f soul.fafm] <packet.fafmp>
+```
+
+- **Fail closed:** bad magic / CRC / length → exit **1**, local soul **not** rewritten.
+- **Same namepoint** required (CvRDT rule). Init both replicas with the same `-n`.
+- **60-second proof:** `bash examples/tier2_receipt.sh` — see `RECEIPT.md`.
+
 ## Out of scope (v0)
 
-Signing / encryption · tombstones / delete sync · CLI seal/merge · full FAFB
-binary · IANA media type. Deletes remain out of the merge path (grow/update-only).
+Signing / encryption · tombstones / delete sync · full FAFB binary · IANA media
+type · standalone `open` verb (ingest is `merge`). Deletes remain out of the
+merge path (grow/update-only).

@@ -7,6 +7,7 @@ real — copy, run, watch it work.
 python examples/01_quickstart.py
 python examples/02_portability.py
 python examples/03_cross_vendor.py
+bash examples/tier2_receipt.sh          # T4: seal → send → merge → falsifiers
 ```
 
 ## 01 — Quickstart (offline)
