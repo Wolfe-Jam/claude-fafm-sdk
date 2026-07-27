@@ -26,15 +26,15 @@ from hypothesis import strategies as st
 # ensure the sibling clean-room module is importable regardless of pytest mode
 sys.path.insert(0, os.path.dirname(__file__))
 
-from claude_fafm_sdk.merge import content_hash as sdk_chash  # noqa: E402
-from claude_fafm_sdk.merge import merge_souls as sdk_merge  # noqa: E402
-from claude_fafm_sdk.merge import souls_equal as sdk_equal  # noqa: E402
-from claude_fafm_sdk.soul import Fact, Soul  # noqa: E402
+import reference_merge
+from reference_merge import content_hash as ref_chash
+from reference_merge import merge_souls as ref_merge
+from reference_merge import souls_equal as ref_equal
 
-import reference_merge  # noqa: E402
-from reference_merge import content_hash as ref_chash  # noqa: E402
-from reference_merge import merge_souls as ref_merge  # noqa: E402
-from reference_merge import souls_equal as ref_equal  # noqa: E402
+from claude_fafm_sdk.merge import content_hash as sdk_chash
+from claude_fafm_sdk.merge import merge_souls as sdk_merge
+from claude_fafm_sdk.merge import souls_equal as sdk_equal
+from claude_fafm_sdk.soul import Fact, Soul
 
 # whole module is gated on the clean-room impl being ready
 pytestmark = pytest.mark.skipif(
@@ -103,7 +103,7 @@ _sessions = st.lists(
 # re-etch (fact ts > deleted_at), and delete-wins ties all fire in the differential.
 # deleted_at values interleave the fact timestamps above. Keys built via the data-model
 # txt_hash so a ("txt", …) tombstone actually targets a generated "alpha"/"café" fact.
-from claude_fafm_sdk.soul import txt_hash as _dm_txt_hash  # noqa: E402
+from claude_fafm_sdk.soul import txt_hash as _dm_txt_hash
 
 _tomb_keys = st.sampled_from(
     [

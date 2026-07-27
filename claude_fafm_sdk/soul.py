@@ -269,7 +269,7 @@ class Soul:
         ``namepoint`` must be present in ``doc`` unless a fallback is given.
         """
         if not isinstance(doc, dict):
-            raise ValueError("soul is not a YAML mapping")
+            raise TypeError("soul is not a YAML mapping")
         memory = doc.get("memory") or {}
         if not isinstance(memory, dict):
             memory = {}

@@ -8,8 +8,7 @@ import os
 
 import pytest
 
-import claude_fafm_sdk.cli as cli
-from claude_fafm_sdk import Soul
+from claude_fafm_sdk import Soul, cli
 from claude_fafm_sdk.cli import main
 
 

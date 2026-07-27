@@ -14,11 +14,11 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from claude_fafm_sdk.merge import merge_souls as sdk_merge  # noqa: E402
-from claude_fafm_sdk.merge import souls_equal as sdk_equal  # noqa: E402
-from claude_fafm_sdk.soul import Fact, Soul  # noqa: E402
+import reference_merge
 
-import reference_merge  # noqa: E402
+from claude_fafm_sdk.merge import merge_souls as sdk_merge
+from claude_fafm_sdk.merge import souls_equal as sdk_equal
+from claude_fafm_sdk.soul import Fact, Soul
 
 NP = "@golden"
 

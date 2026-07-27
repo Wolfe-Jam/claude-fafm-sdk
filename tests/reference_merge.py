@@ -25,9 +25,9 @@ import unicodedata
 from typing import Any
 
 # Data model ONLY — do not import from claude_fafm_sdk.merge.
-from claude_fafm_sdk.soul import (  # noqa: F401
-    Fact,
+from claude_fafm_sdk.soul import (
     PRIORITY_RANK,
+    Fact,
     Soul,
     canonical_priority,
 )

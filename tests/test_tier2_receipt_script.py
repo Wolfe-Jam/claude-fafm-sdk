@@ -20,6 +20,7 @@ def test_r1_tier2_receipt_script_green() -> None:
         capture_output=True,
         text=True,
         timeout=120,
+        check=False,
     )
     assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
     assert "TIER-2 RECEIPT GREEN" in proc.stdout

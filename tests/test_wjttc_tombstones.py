@@ -17,16 +17,16 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from claude_fafm_sdk.merge import merge_souls as sdk_merge  # noqa: E402
-from claude_fafm_sdk.merge import souls_equal as sdk_equal  # noqa: E402
-from claude_fafm_sdk.packet import (  # noqa: E402
+import reference_merge
+
+from claude_fafm_sdk.merge import merge_souls as sdk_merge
+from claude_fafm_sdk.merge import souls_equal as sdk_equal
+from claude_fafm_sdk.packet import (
     from_packet,
     normalize_for_seal,
     to_packet,
 )
-from claude_fafm_sdk.soul import Fact, Soul, txt_hash  # noqa: E402
-
-import reference_merge  # noqa: E402
+from claude_fafm_sdk.soul import Fact, Soul, txt_hash
 
 NP = "@tomb"
 
@@ -94,9 +94,9 @@ def test_t3_delete_wins_on_equal_clock():
     deleter = _s()
     deleter.forget("x", deleted_at=T1)          # deleted_at == fact ts
     holder = _s(Fact(text="alpha", id="x", timestamp=T1))
-    for name in _IMPLS:
-        m_ab = _IMPLS[name](deleter, holder)
-        m_ba = _IMPLS[name](holder, deleter)
+    for name, merge in _IMPLS.items():
+        m_ab = merge(deleter, holder)
+        m_ba = merge(holder, deleter)
         assert not _has(m_ab, "x"), f"{name}: equal clock did not delete-win (a,b)"
         assert not _has(m_ba, "x"), f"{name}: equal clock did not delete-win (b,a)"
 

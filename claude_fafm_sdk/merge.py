@@ -32,7 +32,7 @@ import json
 import unicodedata
 from typing import Any
 
-from .soul import Fact, PRIORITY_RANK, Soul, canonical_priority
+from .soul import PRIORITY_RANK, Fact, Soul, canonical_priority
 
 # ── encodings (PINNED — byte-identical across implementations) ──────────────
 

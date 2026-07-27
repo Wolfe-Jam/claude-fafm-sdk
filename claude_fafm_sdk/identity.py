@@ -108,7 +108,7 @@ def _post(url: str, payload: dict) -> dict:
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=15) as r:  # noqa: S310 - fixed https mcpaas endpoints
+        with urllib.request.urlopen(req, timeout=15) as r:
             return json.loads(r.read().decode())
     except urllib.error.HTTPError as e:
         body = e.read().decode(errors="replace")[:300]
