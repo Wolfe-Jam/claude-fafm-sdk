@@ -74,7 +74,8 @@ jobs:
       - name: Install ruff
         run: |
           python -m pip install --upgrade pip
-          pip install ruff
+          # Pin to match local .venv (avoids silent RUF rule drift on unpinned latest)
+          pip install 'ruff==0.16.0'
 
       - name: Ruff check (advisory)
         run: ruff check .
