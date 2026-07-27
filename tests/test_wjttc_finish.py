@@ -27,9 +27,9 @@ FAFM = FIXTURES / "fafm"
 # ---------------------------------------------------------------------------
 
 
-def test_finish_version_is_1_3():
-    """v1.3 release gate: package is 1.3.x and single-sourced."""
-    assert claude_fafm_sdk.__version__.startswith("1.3")
+def test_finish_version_is_1_4():
+    """v1.4 release gate: package is 1.4.x and single-sourced."""
+    assert claude_fafm_sdk.__version__.startswith("1.4")
     assert version("claude-fafm-sdk") == claude_fafm_sdk.__version__
 
 
@@ -44,7 +44,7 @@ def test_finish_interop_contract_on_disk():
 
 
 def test_finish_public_exports():
-    """v1.3 public API surface is importable (merge + packet + receipt CLI)."""
+    """v1.4 public API surface is importable (merge + packet + receipt + signing)."""
     from claude_fafm_sdk import (
         Fact,
         PacketError,
@@ -53,19 +53,27 @@ def test_finish_public_exports():
         canonical_priority,
         from_claude_dir,
         from_packet,
+        generate_keypair,
         merge_packet,
         merge_souls,
+        packet_is_signed,
+        sign_packet,
         to_packet,
+        verify_packet,
     )
-    from claude_fafm_sdk.cli import cmd_open, cmd_receipt
+    from claude_fafm_sdk.cli import cmd_keygen, cmd_open, cmd_receipt, cmd_verify
     from claude_fafm_sdk.receipt import run_receipt
 
-    assert __version__.startswith("1.3")
+    assert __version__.startswith("1.4")
     assert callable(from_claude_dir)
     assert callable(merge_souls)
     assert callable(to_packet) and callable(from_packet) and callable(merge_packet)
+    assert callable(packet_is_signed)
     assert issubclass(PacketError, ValueError)
     assert callable(run_receipt) and callable(cmd_receipt) and callable(cmd_open)
+    # 1.4 Verifiable Provenance surface
+    assert callable(generate_keypair) and callable(sign_packet) and callable(verify_packet)
+    assert callable(cmd_keygen) and callable(cmd_verify)
     assert Soul.from_file is not None
     assert Fact is not None
     assert canonical_priority("low") == "ephemeral"

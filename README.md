@@ -8,20 +8,27 @@
 versions with your project and moves between models — instead of being locked to
 one vendor.
 
-### What's New in 1.3.0 — Provable Receipt
+### What's New in 1.4.0 — Verifiable Provenance
 
-1.2 made memory **sendable**; 1.3 makes the proof **one command**. The 60-second
-Tier-2 arc — etch → seal → send → merge → recall, plus the falsifiers — now ships
-**in the wheel**, so anyone runs it with no git clone:
+1.3 proved memory *travels intact*; 1.4 lets it prove *who sealed it*. An **optional
+Ed25519 signature** binds a key to the sealed payload — separate from CRC integrity.
+Opt-in via the `[sign]` extra; the base SDK and the Provable Receipt stay zero-crypto.
 
 ```sh
-uvx claude-fafm-sdk receipt          # → TIER-2 RECEIPT GREEN (exit 0)
+pip install 'claude-fafm-sdk[sign]'
+claude-fafm-sdk keygen                                 # 🔑 Ed25519 keypair (sign.pem 0600)
+claude-fafm-sdk seal -f soul.fafm -o soul.fafmp --sign --key sign.pem
+claude-fafm-sdk verify soul.fafmp -k sign.pub.pem      # exit 0 good / 1 bad
 ```
 
-- **`receipt`** — the whole arc + CRC-reject / double-merge / both-ways falsifiers, one command  
-- **`open`** — open a `.fafmp` packet → `.fafm` or a summary (fail-closed)  
+- **`keygen` / `seal --sign` / `verify`** — Ed25519 provenance over the CRC payload  
+- **`sign_packet` / `verify_packet`** — signed packets never CRC-open; `merge` verifies first  
+- **Provable Receipt (1.3)** — `uvx claude-fafm-sdk receipt`, zero-crypto  
 - **Sendable (1.2)** — `to_packet` / `merge_packet` + CLI `seal` / `merge`  
 - **Mergeable (1.1)** — `merge_souls`, the dual-implementation-verified CvRDT  
+- **Provenance, not a PKI.** A signature proves *this key signed these bytes* — not
+  a person, not encryption, and it can't force content to travel signed. See
+  [PROVENANCE.md](PROVENANCE.md).  
 - See [CHANGELOG](CHANGELOG.md) for the full list
 
 Offline-first: the local `Soul` works with no account. Connect a free

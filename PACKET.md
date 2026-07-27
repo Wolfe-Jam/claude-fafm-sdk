@@ -7,8 +7,11 @@ CvRDT: `merge_packet(local, data) == merge_souls(local, from_packet(data))`.
 ## Honesty (read this first)
 
 - **CRC is INTEGRITY, not AUTHENTICATION.** A packet proves it was not
-  *corrupted* in transit — not *who* sent it. There is **no signing and no
-  encryption** in v0. Do not use a packet as a trust boundary.
+  *corrupted* in transit — not *who* sent it. There is **no encryption**. An
+  **optional** Ed25519 signature (provenance) is available since 1.4 — separate
+  from CRC, opt-in via the `[sign]` extra — see [PROVENANCE.md](PROVENANCE.md). A
+  signature binds a *key* to the bytes; it is still not a person, not encryption,
+  and not a PKI.
 - **`SPK1` is the Soul-Packet seal v0 — distinct from the project `FAFB`
   binary.** Extension `.fafmp`. **No IANA media type is claimed.** This is not
   the full FAFB section-mapped format.
@@ -21,10 +24,11 @@ CvRDT: `merge_packet(local, data) == merge_souls(local, from_packet(data))`.
 |-------:|-----:|---------|-------|
 | 0      | 4    | magic   | `b"SPK1"` |
 | 4      | 2    | version | `u16 = 1` |
-| 6      | 2    | flags   | `u16 = 0` (reserved; ignored on read) |
+| 6      | 2    | flags   | `u16` — bit 0 = `SIGNED` (0x0001); other bits reserved, 0 |
 | 8      | 4    | crc32   | `u32` — **CRC-32 of the PAYLOAD ONLY** (zlib / `binascii.crc32`, unsigned) |
-| 12     | 4    | length  | `u32` — payload byte length |
+| 12     | 4    | length  | `u32` — payload byte length (N); the trailer is **not** counted |
 | 16     | N    | payload | UTF-8 canonical `.fafm` YAML |
+| 16+N   | 64   | sig     | Ed25519 signature over `payload[16:16+N]` — **only if `SIGNED`** (see [PROVENANCE.md](PROVENANCE.md)) |
 
 > **Interop note:** the CRC covers the **payload only**, never the header. A
 > second implementation must CRC the payload bytes (offset 16..) — CRC-ing the
@@ -84,8 +88,9 @@ claude-fafm-sdk merge [-f soul.fafm] <packet.fafmp>
 - **Same namepoint** required (CvRDT rule). Init both replicas with the same `-n`.
 - **60-second proof:** `bash examples/tier2_receipt.sh` — see `RECEIPT.md`.
 
-## Out of scope (v0)
+## Out of scope
 
-Signing / encryption · tombstones / delete sync · full FAFB binary · IANA media
-type · standalone `open` verb (ingest is `merge`). Deletes remain out of the
-merge path (grow/update-only).
+Encryption · `key_id` / embedded public key (→ later) · tombstones / delete sync
+· full FAFB binary · IANA media type · FAFB `FLAG_SIGNED` interop (`SPK1` ≠
+`FAFB`). Deletes remain out of the merge path (grow/update-only). Optional
+**signing** is now in scope — see [PROVENANCE.md](PROVENANCE.md).

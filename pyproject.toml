@@ -23,6 +23,9 @@ dependencies = [
 namepoint = [
     "fastmcp>=3.2",   # hosted reads/writes via MCPaaS — the family-standard MCP client
 ]
+sign = [
+    "cryptography>=42",  # Ed25519 Verifiable Provenance (1.4) — base + receipt stay zero-crypto
+]
 dev = [
     "pytest>=8.0",
     "hypothesis>=6.0",  # WJTTC merge + N-version property suites
@@ -65,6 +68,11 @@ exclude = ["dist/", "build/", ".venv/", "tests/", "examples/"]
 
 [[tool.mypy.overrides]]
 module = ["fastmcp", "fastmcp.*"]
+ignore_missing_imports = true
+
+# cryptography is the optional [sign] extra — not present when mypy runs on [dev]
+[[tool.mypy.overrides]]
+module = ["cryptography", "cryptography.*"]
 ignore_missing_imports = true
 
 # PEP 561 — typed package for consumers (faf-memory-mcp, etc.)

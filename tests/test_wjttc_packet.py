@@ -167,13 +167,23 @@ def test_reject_non_mapping_payload():
         from_packet(header + payload)
 
 
-def test_crc_is_payload_only_flags_ignored():
-    # CRC covers PAYLOAD ONLY, and flags is reserved/ignored — so flipping the
-    # (unvalidated) flags header field must still open cleanly.
+def test_crc_is_payload_only_reserved_flags_ignored():
+    # CRC covers PAYLOAD ONLY. Since 1.4, flag bit 0 = SIGNED and has meaning; the
+    # other 15 bits stay reserved/ignored — setting them must still open cleanly
+    # (proving the CRC didn't fold in the header).
+    from claude_fafm_sdk.packet import FLAG_SIGNED, PacketError
+
     s = Soul("@t", facts=[Fact(text="alpha", id="x")])
     pkt = bytearray(to_packet(s))
-    struct.pack_into("<H", pkt, 6, 0xFFFF)  # flags field
+    struct.pack_into("<H", pkt, 6, 0xFFFF & ~FLAG_SIGNED)  # all flag bits EXCEPT SIGNED
     assert souls_equal(from_packet(bytes(pkt)), s)
+
+    # Setting the SIGNED bit on an (unsigned) packet is no longer ignored — an
+    # unsigned reader must reject it rather than CRC-open a would-be signed packet.
+    signed_flag = bytearray(to_packet(s))
+    struct.pack_into("<H", signed_flag, 6, FLAG_SIGNED)
+    with pytest.raises(PacketError, match="signed"):
+        from_packet(bytes(signed_flag))
 
 
 def test_integrity_not_auth_docstring():

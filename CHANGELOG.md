@@ -3,6 +3,56 @@
 All notable changes to `claude-fafm-sdk` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.4.0] — 2026-07-27
+
+**Verifiable Provenance.** 1.3 proved a packet travels *intact*; 1.4 lets it prove
+*who sealed it*. A packet MAY now carry an **optional Ed25519 signature** over the
+same payload bytes CRC covers — integrity (CRC) and provenance (signature) stay
+separate. Opt-in via the `[sign]` extra; the base SDK **and** the Provable Receipt
+remain zero-crypto (pyyaml only). The merge oracle is untouched — this is transport.
+
+### Added
+- **Signing (`[sign]` extra → `cryptography`)** — `claude_fafm_sdk.signer` with
+  `generate_keypair`, `sign_packet(soul, private_key)`, `verify_packet(data,
+  public_key)` (also top-level on the package). Ed25519 over the raw canonical
+  payload; a **fixed 64-byte** trailer, no `key_id`. `[sign]` missing → a clean
+  "install `claude-fafm-sdk[sign]`" message, never a raw `ImportError`.
+- **Signed wire** — header `flags` bit 0 = `SIGNED` (`0x0001`); a signed packet is
+  `16-byte header + N-byte payload + 64-byte signature`. Unsigned seals are
+  **byte-identical** to 1.2/1.3 (`flags=0`, no trailer).
+- **CLI `keygen` / `seal --sign --key` / `verify -k`** — `keygen` writes
+  `sign.pem` (`0600`) + `sign.pub.pem`; `verify` exits 0 (good) / 1 (bad).
+- **Strict open** — `from_packet` and CLI `open` reject a signed packet with a
+  pointer to `verify`; `merge_packet(local, data, public_key=…)` **verifies** a
+  signed peer before ingest (never CRC-opens it) and rejects a signed packet given
+  no key. A signed packet is rejected by old 1.2/1.3 readers (length-exact).
+- **Fixed-fixture golden** — a signed wire-hex golden pinned from a **TEST-ONLY**
+  32-byte seed; the repo commits **only the public PEM** (no private key material).
+  Ed25519 is deterministic, so the golden reproduces on any machine.
+
+### Verification
+```
+pip install 'claude-fafm-sdk[sign]'
+claude-fafm-sdk keygen                                          # sign.pem (0600) + sign.pub.pem
+claude-fafm-sdk seal -f soul.fafm -o soul.fafmp --sign --key sign.pem
+claude-fafm-sdk verify soul.fafmp -k sign.pub.pem               # → signature OK (exit 0)
+uvx claude-fafm-sdk receipt                                     # still GREEN, zero-crypto
+```
+- **We claim:** an optional Ed25519 signature binds a key to the sealed payload
+  bytes (the same bytes CRC covers); verify is strict and fails closed; signed
+  packets never CRC-open; unsigned seals are byte-identical to 1.3; base + receipt
+  need no crypto.
+- **We do NOT claim:** authentication branding, "authenticated memory", encryption,
+  or a human identity (a key is not a person); a CA/CRL/PKI; that a signature
+  prevents a **strip-downgrade** — stripping the 64-byte trailer and clearing the
+  `SIGNED` flag recovers an equivalent unsigned packet of the same payload (the
+  flag is not signed; verify proves *this key signed these bytes*, not *this
+  content can only travel signed*); FAFB signing or `FLAG_SIGNED` interop (`SPK1` ≠
+  `FAFB`); a `key_id` / embedded public key (→ 1.4.1); a signed-receipt one-liner
+  (→ 1.4.1); namepoint↔key binding; delete convergence (grow/update-only — → 1.5);
+  and verify does **not** re-prove the dual-implementation CvRDT merge (transport +
+  ingest only; dual-impl remains the 1.1 story).
+
 ## [1.3.0] — 2026-07-26
 
 **Provable Receipt.** 1.2 made memory *sendable*; 1.3 makes the proof *one

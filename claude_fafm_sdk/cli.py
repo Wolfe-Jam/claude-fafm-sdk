@@ -13,6 +13,7 @@ local soul. Not the hosted namepoint path.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -142,25 +143,114 @@ def cmd_forget(args: argparse.Namespace) -> int:
 
 
 def cmd_seal(args: argparse.Namespace) -> int:
-    """Seal a local ``.fafm`` soul into a CRC-sealed ``.fafmp`` packet (file transport).
+    """Seal a local ``.fafm`` soul into a ``.fafmp`` packet (file transport).
 
-    Integrity only — not authentication. See ``PACKET.md``.
+    Unsigned = CRC-32 integrity only (not authentication). ``--sign --key PATH``
+    adds an Ed25519 signature (Verifiable Provenance, 1.4) — proves *this key
+    signed these bytes*, still not a PKI or a human identity. See ``PACKET.md``.
     """
     path = Path(args.file)
     if not path.exists():
         print(f"{path} not found — run: claude-fafm-sdk init")
         return 1
+    if args.sign and not args.key:
+        print("seal --sign requires --key <private-key.pem> (make one: claude-fafm-sdk keygen)")
+        return 1
     out = Path(args.output) if args.output else path.with_suffix(PACKET_SUFFIX)
     try:
         soul = Soul.load(path)
-        to_packet_file(soul, out)
+        if args.sign:
+            from .signer import sign_packet
+
+            priv_pem = Path(args.key).read_bytes()
+            out.write_bytes(sign_packet(soul, priv_pem))
+        else:
+            to_packet_file(soul, out)
     except PacketError as e:
         print(f"seal failed: {e}")
         return 1
     except (OSError, ValueError) as e:
         print(f"seal failed: {e}")
         return 1
-    print(f"sealed → {out}  (SPK1 + CRC-32; integrity only, not auth)")
+    if args.sign:
+        print(f"sealed → {out}  (SPK1 + SIGNED; Ed25519 provenance over CRC-32 payload)")
+    else:
+        print(f"sealed → {out}  (SPK1 + CRC-32; integrity only, not auth)")
+    return 0
+
+
+def cmd_keygen(args: argparse.Namespace) -> int:
+    """Generate an Ed25519 keypair for signing packets (Verifiable Provenance).
+
+    Writes ``sign.pem`` (private, ``0600`` — keep secret, never commit) and
+    ``sign.pub.pem`` (public — share it to let others verify). Needs ``[sign]``.
+    """
+    from .signer import generate_keypair
+
+    out = Path(args.out)
+    priv_path = out / "sign.pem"
+    pub_path = out / "sign.pub.pem"
+    if (priv_path.exists() or pub_path.exists()) and not args.force:
+        print(f"keys already exist in {out}/ — use --force to overwrite (destroys the old key)")
+        return 1
+    try:
+        priv_pem, pub_pem = generate_keypair()  # clean [sign]-missing error if absent
+        out.mkdir(parents=True, exist_ok=True)
+        priv_path.write_bytes(priv_pem)
+        os.chmod(priv_path, 0o600)
+        pub_path.write_bytes(pub_pem)
+    except PacketError as e:
+        print(str(e))
+        return 1
+    except OSError as e:
+        print(f"keygen failed: {e}")
+        return 1
+    print("🔑  Ed25519 keypair written:")
+    print(f"    private  {priv_path}  (0600 — secret, never commit)")
+    print(f"    public   {pub_path}  (share to let others verify)")
+    print(f"    sign:    claude-fafm-sdk seal --sign --key {priv_path}")
+    print(f"    verify:  claude-fafm-sdk verify -k {pub_path} <packet{PACKET_SUFFIX}>")
+    return 0
+
+
+def cmd_verify(args: argparse.Namespace) -> int:
+    """Verify a **signed** ``.fafmp`` packet against a public key.
+
+    Exit 0 + (optionally) write the ``.fafm`` on a good signature; exit 1 on any
+    failure (not signed / wrong key / tampered / corrupt). Fail closed — no
+    partial write. Provenance only — a valid signature is not a claim about a person.
+    """
+    pkt = Path(args.packet)
+    if not pkt.exists():
+        print(f"packet not found: {pkt}")
+        return 1
+    key = Path(args.key)
+    if not key.exists():
+        print(f"public key not found: {key}")
+        return 1
+    try:
+        from .signer import verify_packet
+
+        soul = verify_packet(pkt.read_bytes(), key.read_bytes())
+    except PacketError as e:
+        print(f"verify failed: {e}")
+        return 1
+    except OSError as e:
+        print(f"verify failed: {e}")
+        return 1
+    if args.output:
+        try:
+            soul.save(Path(args.output))
+        except OSError as e:
+            print(f"verify failed: {e}")
+            return 1
+        print(f"✅  verified {pkt} → {args.output}  ({len(soul.facts)} facts; signature OK)")
+    else:
+        n = len(soul.facts)
+        print(
+            f"✅  verified {pkt}: namepoint {soul.namepoint} · "
+            f"{n} fact{'s' if n != 1 else ''} · signature OK"
+        )
     return 0
 
 
@@ -593,7 +683,30 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help=f"output packet path (default: <soul>{PACKET_SUFFIX})",
     )
+    ps.add_argument(
+        "--sign",
+        action="store_true",
+        help="sign the packet (Ed25519 provenance; requires --key and the [sign] extra)",
+    )
+    ps.add_argument("--key", default=None, help="private key PEM for --sign (from keygen)")
     ps.set_defaults(func=cmd_seal)
+
+    pkg = sub.add_parser(
+        "keygen",
+        help="generate an Ed25519 keypair for signing (sign.pem 0600 + sign.pub.pem) [sign]",
+    )
+    pkg.add_argument("--out", default=".", help="output directory (default: current dir)")
+    pkg.add_argument("--force", action="store_true", help="overwrite existing keys (destroys the old key)")
+    pkg.set_defaults(func=cmd_keygen)
+
+    pv = sub.add_parser(
+        "verify",
+        help="verify a signed .fafmp against a public key (exit 0 good / 1 bad) [sign]",
+    )
+    pv.add_argument("packet", help="path to the signed .fafmp packet")
+    pv.add_argument("-k", "--key", required=True, help="public key PEM to verify against")
+    pv.add_argument("-o", "--output", default=None, help="write the verified soul to this .fafm")
+    pv.set_defaults(func=cmd_verify)
 
     pm = sub.add_parser(
         "merge",

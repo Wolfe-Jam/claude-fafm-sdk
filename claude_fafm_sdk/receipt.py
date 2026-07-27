@@ -16,11 +16,11 @@ import tempfile
 from pathlib import Path
 from typing import Callable
 
+from . import __version__
 from .merge import souls_equal
 from .packet import (
     PacketError,
     from_packet,
-    from_packet_file,
     merge_packet,
     to_packet,
     to_packet_file,
@@ -107,7 +107,7 @@ def run_receipt(as_json: bool = False) -> int:
     all_ok = all(c["ok"] for c in checks)
 
     if as_json:
-        print(json.dumps({"receipt": "tier-2", "version": "1.3", "pass": all_ok,
+        print(json.dumps({"receipt": "tier-2", "version": __version__, "pass": all_ok,
                           "checks": checks}, indent=2))
     else:
         _print_banner(checks, all_ok)

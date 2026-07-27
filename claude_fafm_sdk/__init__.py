@@ -31,12 +31,14 @@ from .packet import (
     from_packet,
     from_packet_file,
     merge_packet,
+    packet_is_signed,
     to_packet,
     to_packet_file,
 )
+from .signer import generate_keypair, sign_packet, verify_packet
 from .soul import PRIORITY_ORDER, Fact, Soul, canonical_priority
 
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 
 __all__ = [
     "Soul",
@@ -57,8 +59,12 @@ __all__ = [
     "to_packet",
     "from_packet",
     "merge_packet",
+    "packet_is_signed",
     "to_packet_file",
     "from_packet_file",
     "PacketError",
+    "generate_keypair",
+    "sign_packet",
+    "verify_packet",
     "__version__",
 ]
