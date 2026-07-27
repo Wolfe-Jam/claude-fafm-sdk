@@ -64,7 +64,7 @@ _opaque = st.dictionaries(
     max_size=2,
 )
 
-# residual join-semilattice fields (Phase-4 N4 coverage): the oracle already
+# residual join-semilattice fields (residual-field coverage): the oracle already
 # compares these, but the generators never populated them — so sessions (G1
 # G-Set), retention (G4 max-register), and memory_extra / soul-level extra
 # (opaque LWW maps) went untested until now.

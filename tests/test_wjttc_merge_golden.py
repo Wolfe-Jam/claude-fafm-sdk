@@ -1,10 +1,10 @@
 """Golden fixtures — hand-authored `input → expected` for the residual
 join-semilattice fields (sessions G1, retention G4, opaque LWW maps).
 
-Property search under-samples these (Phase-4 N4) AND can't catch a bug that BOTH
+Property search under-samples these (residual fields) AND can't catch a bug that BOTH
 implementations share ("the two agree" proves nothing if both are wrong). These
 goldens pin the **spec-correct** expected output by hand, and assert *every*
-available merge implementation (Opus core + Composer clean-room) reproduces it.
+available merge implementation (both independent implementations) reproduces it.
 Frozen against 1.1.1 — a change that alters a golden is a conscious decision.
 """
 from __future__ import annotations
@@ -14,18 +14,18 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from claude_fafm_sdk.merge import merge_souls as opus_merge  # noqa: E402
-from claude_fafm_sdk.merge import souls_equal as opus_equal  # noqa: E402
+from claude_fafm_sdk.merge import merge_souls as sdk_merge  # noqa: E402
+from claude_fafm_sdk.merge import souls_equal as sdk_equal  # noqa: E402
 from claude_fafm_sdk.soul import Fact, Soul  # noqa: E402
 
-import composer_merge  # noqa: E402
+import reference_merge  # noqa: E402
 
 NP = "@golden"
 
-# every implementation the goldens hold to (Composer only if its clean-room impl is ready)
-_IMPLS = {"opus": opus_merge}
-if getattr(composer_merge, "IMPLEMENTED", False):
-    _IMPLS["composer"] = composer_merge.merge_souls
+# every implementation the goldens hold to (reference only if its clean-room impl is ready)
+_IMPLS = {"sdk": sdk_merge}
+if getattr(reference_merge, "IMPLEMENTED", False):
+    _IMPLS["reference"] = reference_merge.merge_souls
 
 
 def _both(a: Soul, b: Soul) -> dict[str, Soul]:
@@ -69,7 +69,7 @@ def test_golden_memory_extra_key_union():
 
 def test_golden_memory_extra_same_key_lww_newer_wins():
     # opaque LWW-per-key CONFLICT (not just union): same key, {v,t} form →
-    # the newer timestamp wins, commutatively. (Grok 25 nit 1.)
+    # the newer timestamp wins, commutatively.
     a = Soul(NP, memory_extra={"k1": {"v": "old", "t": "2026-01-01T00:00:00Z"}})
     b = Soul(NP, memory_extra={"k1": {"v": "new", "t": "2026-02-01T00:00:00Z"}})
     for name, m in _both(a, b).items():
@@ -80,7 +80,7 @@ def test_golden_memory_extra_same_key_lww_newer_wins():
 
 def test_golden_soul_extra_union_and_lww():
     # soul-level `extra` shares the opaque-map join: disjoint keys union +
-    # same-key LWW by timestamp. (Grok 25 nit 2 — dedicated `extra` golden.)
+    # same-key LWW by timestamp — dedicated `extra` golden.
     a = Soul(NP, extra={"k1": "v1", "shared": {"v": "old", "t": "2026-01-01T00:00:00Z"}})
     b = Soul(NP, extra={"k2": "v2", "shared": {"v": "new", "t": "2026-02-01T00:00:00Z"}})
     for name, m in _both(a, b).items():
@@ -107,10 +107,10 @@ def test_golden_empty_ts_plus_residual_combo():
     )
     outs = _both(a, b)
 
-    # cross-impl convergence (if Composer is present)
-    if "composer" in outs:
-        assert opus_equal(outs["opus"], outs["composer"])
-        assert composer_merge.souls_equal(outs["opus"], outs["composer"])
+    # cross-impl convergence (if reference is present)
+    if "reference" in outs:
+        assert sdk_equal(outs["sdk"], outs["reference"])
+        assert reference_merge.souls_equal(outs["sdk"], outs["reference"])
 
     # concrete spec-correct values, every impl
     for name, m in outs.items():

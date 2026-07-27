@@ -268,7 +268,6 @@ Use this when coding Steps 2–6; not part of the prose contract but tracks comp
 
 ## 11. References
 
-- Plan: `PLANET-FAF/FAFM/CLAUDE-FAFM-SDK-V1.0-BUILD-STEPS-2026-07-22.md`
 - Schema: `faf/schemas/fafm.schema.json`
 - Voice consumer tests: `grok-faf-voice/tests/test_local_souls.py`
 - Engine twin: `fafm-engine/fafm_engine/soul.py` (`rebuild_index`)

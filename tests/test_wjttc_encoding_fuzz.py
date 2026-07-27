@@ -126,7 +126,7 @@ def test_content_hash_bare_fact_matches_bare(f):
 @_SET
 @given(_text)
 def test_empty_and_none_ts_are_bare_and_hash_consistent(t):
-    # ts="" and ts=None are indistinguishable for bareness AND hash (the Phase-5
+    # ts="" and ts=None are indistinguishable for bareness AND hash (the
     # empty-ts pin — the footgun the differential caught).
     f_empty = Fact(text=t, timestamp="")
     f_none = Fact(text=t, timestamp=None)
