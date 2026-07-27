@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow 
 ## [1.4.0] — 2026-07-27
 
 **Verifiable Provenance.** 1.3 proved a packet travels *intact*; 1.4 lets it prove
-*who sealed it*. A packet MAY now carry an **optional Ed25519 signature** over the
+*which key sealed it*. A packet MAY now carry an **optional Ed25519 signature** over the
 same payload bytes CRC covers — integrity (CRC) and provenance (signature) stay
 separate. Opt-in via the `[sign]` extra; the base SDK **and** the Provable Receipt
 remain zero-crypto (pyyaml only). The merge oracle is untouched — this is transport.

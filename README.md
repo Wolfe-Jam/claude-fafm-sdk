@@ -10,7 +10,7 @@ one vendor.
 
 ### What's New in 1.4.0 — Verifiable Provenance
 
-1.3 proved memory *travels intact*; 1.4 lets it prove *who sealed it*. An **optional
+1.3 proved memory *travels intact*; 1.4 lets it prove *which key sealed it*. An **optional
 Ed25519 signature** binds a key to the sealed payload — separate from CRC integrity.
 Opt-in via the `[sign]` extra; the base SDK and the Provable Receipt stay zero-crypto.
 
