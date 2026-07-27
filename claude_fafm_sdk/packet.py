@@ -108,6 +108,7 @@ def normalize_for_seal(soul: Soul) -> Soul:
         custom=dict(soul.custom),
         extra=dict(soul.extra),
         memory_extra=dict(soul.memory_extra),
+        tombstones=dict(soul.tombstones),  # 1.5: carry the graveyard; to_doc emits it sorted
     )
     out.last_etched = soul.last_etched
     out.rebuild_index()

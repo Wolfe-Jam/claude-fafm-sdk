@@ -129,16 +129,34 @@ def cmd_ls(args: argparse.Namespace) -> int:
 
 
 def cmd_forget(args: argparse.Namespace) -> int:
+    """Forget a fact so the deletion **converges** (Forgettable Memory, 1.5).
+
+    ``forget <id>`` tombstones an id-fact; ``forget --text "…"`` an id-less one
+    (matched by normalized text). The live fact is removed AND a tombstone is
+    written, so a later merge won't resurrect it from a peer that still holds it.
+    The tombstone is a lattice marker, not a secure erase — old copies and already
+    sent packets are unaffected. Exactly one of ``<id>`` / ``--text`` (no magic query).
+    """
     path = Path(args.file)
     if not path.exists():
         print(f"{path} not found — run: claude-fafm-sdk init")
         return 1
-    soul = Soul.load(path)
-    if not soul.delete_fact(args.id):
-        print(f"no fact with id {args.id!r}")
+    if bool(args.id) == bool(args.text):
+        print('forget needs exactly one of:  <id>   or   --text "<fact text>"')
         return 1
+    soul = Soul.load(path)
+    if args.id:
+        removed = soul.forget(args.id)
+        what = f"id {args.id!r}"
+    else:
+        removed = soul.forget_text(args.text)
+        what = f"text {args.text!r}"
     soul.save(path)
-    print(f"forgot {args.id!r} → ./{path}  ({len(soul.facts)} left)")
+    n = len(soul.facts)
+    if removed:
+        print(f"forgot {what} → ./{path}  ({n} left; tombstone recorded — the delete converges on merge)")
+    else:
+        print(f"no live fact for {what} — tombstone recorded ({n} left; it'll suppress that fact on merge)")
     return 0
 
 
@@ -667,8 +685,16 @@ def main(argv: list[str] | None = None) -> int:
     pls.add_argument("--limit", type=int, default=None)
     pls.set_defaults(func=cmd_ls)
 
-    pf = sub.add_parser("forget", help="delete a fact by id")
-    pf.add_argument("id")
+    pf = sub.add_parser(
+        "forget",
+        help="forget a fact so the delete converges — <id>, or --text for an id-less fact (1.5)",
+    )
+    pf.add_argument("id", nargs="?", default=None, help="id of the fact to forget")
+    pf.add_argument(
+        "--text",
+        default=None,
+        help='forget an id-less fact by its exact text (normalized match)',
+    )
     pf.add_argument("-f", "--file", default=DEFAULT_FILE)
     pf.set_defaults(func=cmd_forget)
 

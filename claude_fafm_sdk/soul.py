@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import copy
 import datetime
+import hashlib
+import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -40,11 +42,64 @@ _KNOWN_DOC_KEYS = frozenset(
     }
 )
 # Keys under memory that Soul models; other memory keys are residual.
-_KNOWN_MEMORY_KEYS = frozenset({"facts", "sessions", "preferences", "custom"})
+# ``tombstones`` (1.5) is first-class — NOT residual: residual treatment would join
+# it as an opaque LWW map (wrong lattice) and never suppress a fact (freeze §3.2).
+_KNOWN_MEMORY_KEYS = frozenset({"facts", "sessions", "preferences", "custom", "tombstones"})
 
 
 def _utcnow() -> str:
     return datetime.datetime.now(tz=datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def normalize_text(text: str) -> str:
+    """NFC + strip — the pinned text normalization (MERGE.md §5.1). The data-model
+    copy: it keys id-less facts and the ``txt_hash`` of a tombstone. Each merge
+    implementation keeps its OWN copy (N-version); this one serves the Soul API."""
+    return unicodedata.normalize("NFC", text).strip()
+
+
+def txt_hash(text: str) -> str:
+    """Tombstone key for an id-less fact (freeze §2.1): lowercase-hex SHA-256 of the
+    UTF-8 bytes of ``normalize_text(text)`` — the SAME keying as G-Set membership,
+    NOT the full ``content_hash`` (which folds in tags/priority/etc). We hash the
+    text so a forgotten fact's content does not linger in the tombstone."""
+    return hashlib.sha256(normalize_text(text).encode("utf-8")).hexdigest()
+
+
+def _tombstones_from_wire(raw: Any) -> dict[tuple[str, str], str]:
+    """Parse ``memory.tombstones`` (a list of ``{id|txt_hash, deleted_at}``) into the
+    LWW map. Lenient (matches the residual-preserve load philosophy): an entry with
+    no non-empty ``deleted_at`` or neither key is skipped, never a load crash. Duplicate
+    keys collapse to ``max(deleted_at)`` (the same grow-only join merge uses)."""
+    out: dict[tuple[str, str], str] = {}
+    if not isinstance(raw, list):
+        return out
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+        deleted_at = entry.get("deleted_at")
+        if not deleted_at or not isinstance(deleted_at, str):
+            continue  # deleted_at required non-empty (freeze §2.3) — skip a bad row
+        if "id" in entry and entry["id"] is not None:
+            key: tuple[str, str] = ("id", str(entry["id"]))
+        elif "txt_hash" in entry and entry["txt_hash"] is not None:
+            key = ("txt", str(entry["txt_hash"]))
+        else:
+            continue
+        if key not in out or deleted_at > out[key]:
+            out[key] = deleted_at
+    return out
+
+
+def _tombstones_to_wire(tombstones: dict[tuple[str, str], str]) -> list[dict[str, str]]:
+    """Serialize the tombstone map to the ``memory.tombstones`` list, in canonical
+    order ``(kind, key, deleted_at)`` so the human save and the sealed bytes agree
+    (freeze §3.3 — list order is not covered by YAML ``sort_keys``)."""
+    rows: list[dict[str, str]] = []
+    for (kind, key), deleted_at in sorted(tombstones.items()):
+        field_name = "id" if kind == "id" else "txt_hash"
+        rows.append({field_name: key, "deleted_at": deleted_at})
+    return rows
 
 
 def canonical_priority(p: str | None) -> str:
@@ -141,6 +196,7 @@ class Soul:
         custom: dict[str, Any] | None = None,
         extra: dict[str, Any] | None = None,
         memory_extra: dict[str, Any] | None = None,
+        tombstones: dict[tuple[str, str], str] | None = None,
     ) -> None:
         self.namepoint = namepoint
         self.profile = profile
@@ -151,6 +207,10 @@ class Soul:
         self._by_id: dict[str, int] = {
             f.id: i for i, f in enumerate(self._facts) if f.id is not None
         }
+        # Tombstones (1.5) — LWW max-register map: key → deleted_at (RFC3339-Z).
+        # key is ("id", <id>) for an id-fact, ("txt", <txt_hash>) for an id-less one.
+        # Grow-only graveyard; merge joins by max(deleted_at) and suppresses on emit.
+        self._tombstones: dict[tuple[str, str], str] = dict(tombstones or {})
         # Document fidelity (INTEROP §1.4 / §5) — soul-owned copies.
         self._index: list[str] = list(index or [])
         self._sessions: list[Any] = list(sessions or [])
@@ -191,6 +251,13 @@ class Soul:
         """``memory`` keys beyond facts/sessions/preferences/custom."""
         return self._memory_extra
 
+    @property
+    def tombstones(self) -> dict[tuple[str, str], str]:
+        """The forget graveyard (1.5): ``(kind, key) -> deleted_at``. ``kind`` is
+        ``"id"`` or ``"txt"``. Grow-only; ``merge_souls`` joins by ``max(deleted_at)``
+        and suppresses a fact whose tombstone outranks its clock (freeze §2)."""
+        return self._tombstones
+
     @classmethod
     def from_doc(cls, doc: Any, *, namepoint_fallback: str | None = None) -> Soul:
         """Build a Soul from a parsed ``.fafm`` mapping — the shared deserialize
@@ -227,6 +294,7 @@ class Soul:
             custom=copy.deepcopy(dict(memory.get("custom") or {})),
             extra=doc_extra,
             memory_extra=memory_extra,
+            tombstones=_tombstones_from_wire(memory.get("tombstones")),
         )
         soul.last_etched = doc.get("last_etched", soul.created)
         return soul
@@ -249,6 +317,10 @@ class Soul:
             "preferences": copy.deepcopy(self._preferences),
             "custom": copy.deepcopy(self._custom),
         }
+        # Emit tombstones only when non-empty — a soul that never forgot is byte-identical
+        # to a 1.4 doc (keeps every ≤1.4 seal/wire golden valid; freeze §3.3 + §5 claim).
+        if self._tombstones:
+            memory["tombstones"] = _tombstones_to_wire(self._tombstones)
         for k, v in self._memory_extra.items():
             if k not in _KNOWN_MEMORY_KEYS:
                 memory[k] = copy.deepcopy(v)
@@ -386,9 +458,44 @@ class Soul:
         return self._facts[i] if i is not None else None
 
     def delete_fact(self, id: str) -> bool:
+        """Single-replica removal of a live fact by id (no tombstone). Used inside
+        :meth:`forget`; for a deletion that CONVERGES across replicas, use ``forget``."""
         i = self._by_id.get(id)
         if i is None:
             return False
         del self._facts[i]
         self._by_id = {f.id: j for j, f in enumerate(self._facts) if f.id is not None}
         return True
+
+    def _tombstone(self, key: tuple[str, str], deleted_at: str) -> None:
+        """Upsert a tombstone at ``key`` to ``max(existing, deleted_at)`` — the
+        grow-only, deepen-only join (freeze §2.1). ``deleted_at`` must be non-empty."""
+        if not deleted_at:
+            raise ValueError("tombstone deleted_at must be non-empty (RFC3339-Z)")
+        cur = self._tombstones.get(key)
+        if cur is None or deleted_at > cur:
+            self._tombstones[key] = deleted_at
+
+    def forget(self, id: str, *, deleted_at: str | None = None) -> bool:
+        """Forget an id-fact so the deletion **converges** (1.5). Removes the live
+        fact if present AND records a tombstone; a later merge will not resurrect it
+        from a peer that still holds it. The tombstone is always written (freeze §3.4)
+        — forgetting an id you no longer hold still suppresses it on merge. Returns
+        True iff a live fact was removed here."""
+        removed = self.delete_fact(id)
+        self._tombstone(("id", id), deleted_at or _utcnow())
+        return removed
+
+    def forget_text(self, text: str, *, deleted_at: str | None = None) -> bool:
+        """Forget an **id-less** fact by its text (1.5). Matches live id-less facts by
+        ``normalize_text`` (the G-Set key), removes them, and records a ``txt_hash``
+        tombstone. Always writes the tombstone (freeze §3.4). Returns True iff a live
+        id-less fact was removed here."""
+        want = normalize_text(text)
+        kept = [f for f in self._facts if not (f.id is None and normalize_text(f.text) == want)]
+        removed = len(kept) != len(self._facts)
+        if removed:
+            self._facts = kept
+            self._by_id = {f.id: j for j, f in enumerate(self._facts) if f.id is not None}
+        self._tombstone(("txt", txt_hash(text)), deleted_at or _utcnow())
+        return removed

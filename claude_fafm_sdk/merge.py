@@ -9,8 +9,21 @@ commutative · associative · idempotent (a product of join-semilattices).
 
 Label (2026-07-24): the dual-implementation differential is green and independently
 re-verified ⇒ unqualified **state-based CvRDT** (two independent implementations,
-encoding lock v1.1 + the §8a gap-decisions + empty-timestamp pin). Grow/update-only —
-no delete convergence in v1.
+encoding lock v1.1 + the §8a gap-decisions + empty-timestamp pin).
+
+**Forgettable Memory (1.5):** the one deliberate merge-law re-open. A **tombstone**
+(LWW max-register map, key → ``deleted_at``) joins ABOVE the field-level fact merge
+and **suppresses** a fact on emit when it outranks the fact's clock (delete-wins on
+ties). So a delete now **converges** among 1.5+ replicas — merge no longer resurrects
+a forgotten fact from a peer that still holds it. Grow-only graveyard (no GC in v1);
+a tombstone is a lattice marker, **not** a secure erase. See ``MERGE.md`` §9.
+
+Convergent forget forced a second, smaller merge-law delta — **Rule T** (``MERGE.md``
+§4a): a same-``id`` fact's ``tags``/``links``/``extra`` follow the **winning clock**
+(concurrent equal-clock peers still union; a strictly lower-clock version contributes
+nothing). Pre-1.5 cross-clock union is not associative once a tombstone can retroactively
+invalidate a low-clock version. A no-tombstone soul now merges as 1.4
+**except** this different-clock case.
 """
 from __future__ import annotations
 
@@ -27,6 +40,13 @@ from .soul import Fact, PRIORITY_RANK, Soul, canonical_priority
 def normalize_text(text: str) -> str:
     """NFC + strip. No casefold, no internal-whitespace collapse (MERGE.md §5.1)."""
     return unicodedata.normalize("NFC", text).strip()
+
+
+def _txt_hash(text: str) -> str:
+    """SHA-256 of ``normalize_text`` — the id-less tombstone key (MERGE.md §9.1 / freeze
+    §2.1). NOT ``content_hash`` (that folds in tags/priority). Impl-local by N-version
+    discipline; the goldens pin the literal hex so it can't drift from ``soul.txt_hash``."""
+    return hashlib.sha256(normalize_text(text).encode("utf-8")).hexdigest()
 
 
 def _canonical_json(obj: Any) -> str:
@@ -164,16 +184,30 @@ def _merge_same_id(x: Fact, y: Fact) -> Fact:
     # scalar winner via scalar-only key → stable under the union'd fields.
     # (Scalar ties ⇒ identical scalar fields, so hi/lo order is harmless for scalars.)
     hi = x if _scalar_lww_key(x) >= _scalar_lww_key(y) else y
+    # Rule T (1.5, MERGE.md §4a — the SECOND merge-law delta after tombstones): tags/links/
+    # extra come from the WINNING CLOCK. Concurrent same-clock peers still union (add-wins);
+    # a STRICTLY LOWER-clock version contributes nothing. v1's cross-clock union is not
+    # associative once a tombstone can retroactively invalidate a low-clock version: after
+    # `c@lo[L1] ⨯ c@hi[]` the fold forgets L1 came from a sub-tombstone version. Winner-clock
+    # tags (max + union-on-ties, both associative) restore C/A/I.
+    if (x.timestamp or "") == (y.timestamp or ""):
+        tags = sorted(set(x.tags) | set(y.tags))  # concurrent → union, emitted sorted
+        links = sorted(set(x.links) | set(y.links))
+        extra = _merge_fact_extra(x.extra, y.extra)  # per-key, order-independent
+    else:
+        tags = sorted(set(hi.tags))  # different clocks → winner's set only
+        links = sorted(set(hi.links))
+        extra = dict(hi.extra)
     return Fact(
         text=normalize_text(hi.text),
         id=hi.id,
         type=hi.type,
         priority=canonical_priority(hi.priority),
-        tags=sorted(set(x.tags) | set(y.tags)),  # set-union, emitted sorted
-        links=sorted(set(x.links) | set(y.links)),
+        tags=tags,
+        links=links,
         timestamp=hi.timestamp,
         source=hi.source,
-        extra=_merge_fact_extra(x.extra, y.extra),  # per-key, order-independent
+        extra=extra,
     )
 
 
@@ -213,6 +247,38 @@ def _det_scalar(x: str, y: str) -> str:
     return x if x == y else max(x, y)
 
 
+# ── tombstones (1.5) — LWW max-register map, joined ABOVE the fact merge ─────
+
+
+def _merge_tombstones(
+    a: dict[tuple[str, str], str], b: dict[tuple[str, str], str]
+) -> dict[tuple[str, str], str]:
+    """Join two tombstone maps: per key, ``max(deleted_at)`` (grow-only; a later
+    delete deepens the grave). Commutative, associative, idempotent (freeze §2.1)."""
+    out: dict[tuple[str, str], str] = dict(a)
+    for key, deleted_at in b.items():
+        cur = out.get(key)
+        if cur is None or deleted_at > cur:
+            out[key] = deleted_at
+    return out
+
+
+def _suppression_key(f: Fact) -> tuple[str, str]:
+    """The tombstone key a fact is matched against: id-fact → ``("id", id)``;
+    id-less → ``("txt", txt_hash(text))`` (freeze §2.2 step 3)."""
+    return ("id", f.id) if f.id is not None else ("txt", _txt_hash(f.text))
+
+
+def _is_suppressed(f: Fact, tombstones: dict[tuple[str, str], str]) -> bool:
+    """True iff a tombstone outranks this fact's clock → drop it on emit. Delete-wins
+    on ties: suppress iff ``deleted_at >= fact_clock`` where ``fact_clock = ts or ""``
+    (empty/missing ts sorts lowest, so any real tombstone beats it) (freeze §2.3)."""
+    deleted_at = tombstones.get(_suppression_key(f))
+    if deleted_at is None:
+        return False
+    return deleted_at >= (f.timestamp or "")
+
+
 # ── the merge ───────────────────────────────────────────────────────────────
 
 
@@ -223,10 +289,20 @@ def merge_souls(a: Soul, b: Soul) -> Soul:
             f"cannot merge different namepoints: {a.namepoint!r} vs {b.namepoint!r}"
         )
 
-    # facts: LWW-Element-Map (by id, field-level) + G-Set (id-less, by normalized text)
+    # 1. join the tombstone map FIRST (above the fact merge) — MERGE.md §9.2 step 1.
+    tombstones = _merge_tombstones(a.tombstones, b.tombstones)
+
+    # 2. join facts (§4, unchanged) — BUT a fact VERSION the graveyard outranks does
+    #    NOT participate: not its scalars, not its tags/links/extra. Suppressing only the
+    #    final emitted fact is NON-associative: same-id field-merge folds a deleted
+    #    low-clock version's tags/links into a surviving higher-clock re-etch in one fold
+    #    order only (differential counterexample, 2026-07-27). Filtering versions up front
+    #    is the field-level realization of R1's "no zombie tags/links/extra" (§9.2 R1').
     by_id: dict[str, Fact] = {}
     idless: dict[str, Fact] = {}
     for f in list(a.facts) + list(b.facts):
+        if _is_suppressed(f, tombstones):
+            continue  # this version is forgotten — it contributes nothing to the merge
         if f.id is not None:
             by_id[f.id] = _merge_same_id(by_id[f.id], f) if f.id in by_id else _canon_fact(f)
         else:
@@ -234,6 +310,7 @@ def merge_souls(a: Soul, b: Soul) -> Soul:
             if k not in idless or lww_key(f) > lww_key(idless[k]):
                 idless[k] = _canon_fact(f)
 
+    # 3. emit in canonical order — every surviving version already outranks its tombstone.
     facts = list(by_id.values()) + list(idless.values())
     facts.sort(key=_canonical_sort_key)
 
@@ -248,6 +325,7 @@ def merge_souls(a: Soul, b: Soul) -> Soul:
         custom=_merge_opaque(a.custom, b.custom),
         extra=_merge_opaque(a.extra, b.extra),
         memory_extra=_merge_opaque(a.memory_extra, b.memory_extra),
+        tombstones=tombstones,
     )
     merged.last_etched = max(a.last_etched, b.last_etched)
     merged.rebuild_index()
@@ -262,9 +340,16 @@ def logical_state(soul: Soul) -> dict[str, Any]:
 
     Facts by (id | normalized-text); tags/links as sets; extra canonicalized;
     opaque maps normalized to {v,t}; index DERIVED canonically (not as stored).
+
+    Tombstones (1.5): the fact view is the **observable** one — a fact a tombstone
+    outranks is suppressed here, exactly as ``merge`` drops it on emit, so
+    ``merge(a,a) == a`` holds even when ``a`` still carries the live fact under its
+    tombstone. The raw tombstone map is ALSO in the state (freeze §3.3): losing a
+    tombstone must count as a difference.
     """
+    observable = [f for f in soul.facts if not _is_suppressed(f, soul.tombstones)]
     facts: dict[tuple[str, str], tuple] = {}
-    for f in soul.facts:
+    for f in observable:
         key = ("id", f.id) if f.id is not None else ("txt", normalize_text(f.text))
         facts[key] = (
             normalize_text(f.text),
@@ -280,10 +365,10 @@ def logical_state(soul: Soul) -> dict[str, Any]:
     def norm_map(m: dict[str, Any]) -> dict[str, tuple[str, str]]:
         return {k: (e["t"], _canonical_json(e["v"])) for k, e in ((k, _entry(v)) for k, v in m.items())}
 
-    # derived-canonical index (from canonically sorted facts), not the stored one
+    # derived-canonical index (from canonically sorted OBSERVABLE facts), not the stored one
     derived_index = tuple(
         f"{f.id or '?'} — {f.text[:80]}"
-        for f in sorted(soul.facts, key=_canonical_sort_key)
+        for f in sorted(observable, key=_canonical_sort_key)
     )
 
     return {
@@ -298,6 +383,7 @@ def logical_state(soul: Soul) -> dict[str, Any]:
         "extra": norm_map(soul.extra),
         "memory_extra": norm_map(soul.memory_extra),
         "sessions": frozenset(_value_hash(s) for s in soul.sessions),
+        "tombstones": frozenset((kind, key, da) for (kind, key), da in soul.tombstones.items()),
         "index": derived_index,
     }
 

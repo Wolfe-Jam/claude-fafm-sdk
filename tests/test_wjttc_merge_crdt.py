@@ -180,13 +180,22 @@ def test_tags_links_set_union():
     assert set(fx.links) == {"L1", "L2"}
 
 
-def test_fact_extra_per_key_lww_union():
+def test_fact_extra_rule_t_winner_clock():
+    # Rule T (1.5): Fact.extra follows the winning CLOCK. Different clocks →
+    # winner only (the newer write's extra; the older k1 does NOT sticky-union — the
+    # documented 1.4→1.5 change). Equal clocks → per-key union (concurrent add-wins).
     a = _s(Fact(text="f", id="x", timestamp="2026-01-01T00:00:00Z", source="s",
                 type=None, priority="standard", extra={"k1": 1}))
     b = _s(Fact(text="f", id="x", timestamp="2026-01-02T00:00:00Z",
-                extra={"k2": 2}))  # newer ts → wins scalar, extra keys union
+                extra={"k2": 2}))  # newer ts → winner clock
     fx = merge_souls(a, b).get_fact("x")
-    assert fx.extra.get("k1") == 1 and fx.extra.get("k2") == 2
+    assert fx.extra == {"k2": 2}  # different clock → winner-clock extra only (Rule T)
+
+    # equal-clock concurrent extra still unions per-key (unchanged)
+    c = _s(Fact(text="f", id="x", timestamp="2026-01-01T00:00:00Z", extra={"k1": 1}))
+    d = _s(Fact(text="f", id="x", timestamp="2026-01-01T00:00:00Z", extra={"k2": 2}))
+    fcd = merge_souls(c, d).get_fact("x")
+    assert fcd.extra.get("k1") == 1 and fcd.extra.get("k2") == 2
 
 
 def test_opaque_stamped_beats_unstamped():

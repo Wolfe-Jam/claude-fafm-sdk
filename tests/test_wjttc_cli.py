@@ -98,14 +98,44 @@ def test_engine_cli_forget_deletes_by_id(tmp_path, monkeypatch, capsys):
     capsys.readouterr()
     assert main(["forget", "why"]) == 0
     assert "1 left" in capsys.readouterr().out
-    assert Soul.load(tmp_path / "soul.fafm").get_fact("why") is None
+    soul = Soul.load(tmp_path / "soul.fafm")
+    assert soul.get_fact("why") is None          # live fact removed
+    assert ("id", "why") in soul.tombstones      # 1.5: + a convergent tombstone
 
 
-def test_brake_forget_missing_id_fails_loud(tmp_path, monkeypatch, capsys):
+def test_forget_missing_id_still_tombstones_for_convergence(tmp_path, monkeypatch, capsys):
+    # 1.5 semantics: forgetting an id you don't hold locally is NOT an error — it
+    # records a tombstone so the fact is suppressed if it arrives later via merge
+    # (freeze §3.4 "append/upsert tombstone"). Honest message, exit 0.
     _seed(monkeypatch, tmp_path)
     capsys.readouterr()
-    assert main(["forget", "nope"]) == 1  # non-zero exit, clear message
-    assert "no fact" in capsys.readouterr().out
+    assert main(["forget", "nope"]) == 0
+    assert "no live fact" in capsys.readouterr().out
+    assert ("id", "nope") in Soul.load(tmp_path / "soul.fafm").tombstones
+
+
+def test_forget_text_tombstones_idless_fact(tmp_path, monkeypatch, capsys):
+    # forget --text: id-less fact matched by normalized text, removed + tombstoned.
+    monkeypatch.chdir(tmp_path)
+    main(["init"])
+    main(["etch", "a stray thought"])  # id-less
+    capsys.readouterr()
+    assert main(["forget", "--text", " a stray thought "]) == 0  # normalized match
+    out = capsys.readouterr().out
+    assert "left" in out
+    soul = Soul.load(tmp_path / "soul.fafm")
+    assert all(f.text != "a stray thought" for f in soul.facts)
+    assert any(kind == "txt" for kind, _ in soul.tombstones)
+
+
+def test_forget_needs_exactly_one_target(tmp_path, monkeypatch, capsys):
+    _seed(monkeypatch, tmp_path)
+    capsys.readouterr()
+    # neither id nor --text → usage error, exit 1
+    assert main(["forget"]) == 1
+    assert "exactly one" in capsys.readouterr().out
+    # both id and --text → also rejected (no ambiguity)
+    assert main(["forget", "why", "--text", "x"]) == 1
 
 
 def test_engine_cli_init_cta_nudges_zero_config(tmp_path, monkeypatch, capsys):

@@ -152,6 +152,33 @@ def _merge_sessions(a: list[Any], b: list[Any]) -> list[Any]:
     return [by_hash[h] for h in sorted(by_hash)]
 
 
+# ── tombstones (1.5, from MERGE.md §9) — independent of the SDK impl ──────────
+
+
+def txt_hash(text: str) -> str:
+    """id-less tombstone key: SHA-256 of normalize_text (§9.1). Reference copy."""
+    return hashlib.sha256(normalize_text(text).encode("utf-8")).hexdigest()
+
+
+def _join_tombstones(x: dict[tuple[str, str], str], y: dict[tuple[str, str], str]):
+    """Max-register join over the union of keys (grow-only; latest delete wins)."""
+    joined = dict(x)
+    for key, when in y.items():
+        if joined.get(key, "") < when:
+            joined[key] = when
+    return joined
+
+
+def _tomb_key(f: Fact) -> tuple[str, str]:
+    return ("id", f.id) if f.id is not None else ("txt", txt_hash(f.text))
+
+
+def _suppressed_by(f: Fact, tombs: dict[tuple[str, str], str]) -> bool:
+    """A tombstone kills a fact when deleted_at >= fact clock (delete-wins tie)."""
+    when = tombs.get(_tomb_key(f))
+    return when is not None and when >= (f.timestamp or "")
+
+
 def _normalize_fact(f: Fact) -> Fact:
     return Fact(
         text=normalize_text(f.text),
@@ -171,10 +198,15 @@ def _merge_id_facts(facts: list[Fact]) -> Fact:
         return _normalize_fact(facts[0])
 
     hi = max(facts, key=scalar_lww_key)
+    # Rule T (§4a): tags/links/extra come ONLY from versions at the winning clock —
+    # concurrent peers union, strictly-lower-clock versions contribute nothing (cross-clock
+    # union is non-associative under retroactive tombstones). Group-at-once here.
+    win_clock = hi.timestamp or ""
+    peers = [f for f in facts if (f.timestamp or "") == win_clock]
     tags: set[str] = set()
     links: set[str] = set()
     extra: dict[str, Any] = {}
-    for f in facts:
+    for f in peers:
         tags |= set(f.tags)
         links |= set(f.links)
         for k, v in f.extra.items():
@@ -198,10 +230,17 @@ def _merge_idless_facts(facts: list[Fact]) -> Fact:
     return _normalize_fact(winner)
 
 
-def _merge_facts(facts_a: list[Fact], facts_b: list[Fact]) -> list[Fact]:
+def _merge_facts(facts_a: list[Fact], facts_b: list[Fact],
+                 tombs: dict[tuple[str, str], str] | None = None) -> list[Fact]:
+    tombs = tombs or {}
     by_id: dict[str, list[Fact]] = {}
     idless: list[Fact] = []
     for f in facts_a + facts_b:
+        # A version the graveyard outranks is dropped BEFORE grouping — a forgotten
+        # low-clock write must not lend its tags/links to a surviving re-etch, or
+        # associativity breaks (field-merge folds them in one order only). §9.2 R1'.
+        if _suppressed_by(f, tombs):
+            continue
         if f.id is not None:
             by_id.setdefault(f.id, []).append(f)
         else:
@@ -246,11 +285,24 @@ def _opaque_logical(m: dict[str, Any]) -> dict[str, tuple[str, str]]:
     return out
 
 
+def _observable_facts(soul: Soul) -> list[Fact]:
+    """Facts a tombstone does NOT outrank — the emitted / equatable view (§9.2)."""
+    return [f for f in soul.facts if not _suppressed_by(f, soul.tombstones)]
+
+
 def logical_state(soul: Soul) -> dict[str, Any]:
+    live = _observable_facts(soul)
     facts: dict[tuple[str, str], tuple[Any, ...]] = {}
-    for f in soul.facts:
+    for f in live:
         key = ("id", f.id) if f.id is not None else ("txt", normalize_text(f.text))
         facts[key] = _fact_logical_entry(f)
+    # index derived from the canonically-ordered observable facts (not the stored one),
+    # so a live-but-suppressed fact equates the same whether or not merge has run.
+    ordered = sorted(
+        live,
+        key=lambda f: (0 if f.id else 1, f.id or "", content_hash(f),
+                       normalize_text(f.text) or f.text or ""),
+    )
     return {
         "namepoint": soul.namepoint,
         "profile": soul.profile,
@@ -263,28 +315,35 @@ def logical_state(soul: Soul) -> dict[str, Any]:
         "extra": _opaque_logical(soul.extra),
         "memory_extra": _opaque_logical(soul.memory_extra),
         "sessions": frozenset(value_hash(e) for e in soul.sessions),
-        "index": tuple(soul.index),
+        "tombstones": frozenset((kind, k, when) for (kind, k), when in soul.tombstones.items()),
+        "index": tuple(f"{f.id or '?'} — {f.text[:80]}" for f in ordered),
     }
 
 
 def merge_souls(a: Soul, b: Soul) -> Soul:
-    """CvRDT join of two souls (same namepoint). Implement from MERGE.md §1–§7."""
+    """CvRDT join of two souls (same namepoint). Implement from MERGE.md §1–§9."""
     if a.namepoint != b.namepoint:
         raise ValueError(
             f"cannot merge souls with different namepoints: {a.namepoint!r} vs {b.namepoint!r}"
         )
+
+    # graveyard joins first; then facts join with forgotten VERSIONS pre-dropped
+    # (§9.2 R1' — version-level, not emit-level, or associativity breaks).
+    graveyard = _join_tombstones(a.tombstones, b.tombstones)
+    surviving = _merge_facts(a.facts, b.facts, graveyard)
 
     merged = Soul(
         a.namepoint,
         profile=_merge_scalar_register(a.profile, b.profile),
         retention=_merge_scalar_register(a.retention, b.retention),
         created=min(a.created, b.created),
-        facts=_merge_facts(a.facts, b.facts),
+        facts=surviving,
         sessions=_merge_sessions(a.sessions, b.sessions),
         preferences=_merge_opaque_map(a.preferences, b.preferences),
         custom=_merge_opaque_map(a.custom, b.custom),
         extra=_merge_opaque_map(a.extra, b.extra),
         memory_extra=_merge_opaque_map(a.memory_extra, b.memory_extra),
+        tombstones=graveyard,
     )
     merged.last_etched = max(a.last_etched or "", b.last_etched or "")
     merged.rebuild_index()
