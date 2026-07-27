@@ -4,9 +4,9 @@ ENGINE-tier: the core local memory ops. BRAKE-tier: format + contract invariants
 (one .fafm format, no fork; offline client fails loud + clear).
 """
 
-import pytest
-
 import asyncio
+
+import pytest
 
 from claude_fafm_sdk import Fact, Namepoint, NamepointAuthRequired, Soul
 

@@ -4,7 +4,7 @@
 
 **NOT part of v1.0 INTEROP.** Merge is a v1.1 / Soul-Packet feature. `Soul.add` (single-replica overwrite) is unchanged; `Soul.merge` is the multi-replica, coordinator-free join defined here.
 
-**Label:** the dual-implementation differential is green and independently re-verified ⇒ unqualified **"CvRDT"** (state-based; two independent implementations under encoding lock v1.1 + the §8a gap-decisions + the empty-timestamp pin). Always **grow/update-only** — deletes-converge is **never** claimed in v1 (§6).
+**Label:** the dual-implementation differential is green and independently re-verified ⇒ unqualified **"CvRDT"** (state-based; two independent implementations under encoding lock v1.1 + the §8a gap-decisions + the empty-timestamp pin). Grow/update-only for the fact lattice; **convergent forget (facts) is added in v1.5 via tombstones (§9).**
 
 **Packet transport (T3):** a sealed `.fafmp` packet ingests through this same merge — `merge_packet(local, data) = merge_souls(local, from_packet(data))`. The seal is transport only; the merge is unchanged. See `PACKET.md`.
 
@@ -17,11 +17,12 @@ A **state-based CvRDT** — a product of join-semilattices, merged whole-state:
 ```
 Soul ≅  LWW-Element-Map (facts by id)          # scalar fields per id
       ⨯ G-Set            (id-less facts)         # by normalized text
-      ⨯ OR/G-Set         (tags, links per fact)  # set-union
+      ⨯ G-Set/LWW        (tags, links per fact)  # winner-clock; equal-clock union (Rule T §4a)
       ⨯ LWW-Map          (Fact.extra per key)    # per-key LWW by value_hash (G2)
       ⨯ max-register      (last_etched)
       ⨯ G-Set            (sessions list entries)                     # by value_hash (G1)
       ⨯ LWW-Map          (preferences/custom/extra/memory_extra)     # {v,t} per key
+      ⨯ LWW-max-register (tombstones — key → deleted_at)             # v1.5, §9 — suppresses facts
       + derived view      (index — recomputed, never merged)
 ```
 
@@ -44,15 +45,16 @@ greater key WINS.
 
 ## 4. Facts
 
-### 4a. Facts WITH `id` — LWW-Element-Map, merged **field-level** (deltas #2/#3)
+### 4a. Facts WITH `id` — LWW-Element-Map, merged **field-level** (deltas #2/#3; **Rule T** in v1.5)
 For the two facts sharing an id (`hi` = greater **`_scalar_lww_key`**, `lo` = other — **G3**, not full `lww_key`):
 - **scalar fields** (`text`, `type`, `priority`, `timestamp`, `source`) ← from **`hi`** (LWW-Register). Stored `text` is **`normalize_text(hi.text)`** (NFC+strip — **G5**), never raw whitespace.
-- **`tags`** ← **set-union** of both, emitted **sorted asc**.
-- **`links`** ← **set-union** of both, emitted **sorted asc**.
-- **`Fact.extra`** ← **per-key LWW by value_hash (G2)**: union of keys; shared key resolved to the value with the **greater `value_hash`** (SHA-256 of canonical JSON of the value); loser-only keys kept. **No** per-key timestamp; **not** whole-fact `lww_key` override (that re-introduces fold-order sensitivity — rejected for v1).
+- **`tags` / `links` / `Fact.extra`** ← **Rule T (v1.5)** — by the **winning clock** (`fact_clock = timestamp or ""`):
+  - **equal clock** (concurrent): **union** — `tags`/`links` set-union sorted asc; `extra` **per-key LWW by value_hash (G2)** (shared key → greater `value_hash`, loser-only keys kept). Concurrent **add-wins**, unchanged from v1.1.
+  - **different clock**: take **`hi`'s set only** — a **strictly lower-clock** version contributes **nothing** (no cross-clock union).
 
-> ⚠️ Explicit: this is **not** whole-fact replace. `tags`/`links`/`extra` merge across both facts even though scalars come from the winner. (Q2's "whole-fact replace" is refined by deltas #2/#3.)
-> ⚠️ **Scalar winner is `_scalar_lww_key` (§8a G3), independent of `tags`/`links`/`extra`.** The full `lww_key` (with `content_hash`) is used **only** for the id-less G-Set winner and the §5.4 sort — using it here would let a mid-fold tag union flip the scalar winner and break associativity.
+> ⚠️ **Rule T is a v1.5 merge-law delta** (the second, after tombstones §9). Pre-1.5 unioned `tags`/`links`/`extra` across **all** same-id versions regardless of clock; that is **not associative** once a tombstone can retroactively invalidate a low-clock version (§9.2). Winner-clock tags (`max(clock)` + `union` on ties, both associative) restore C/A/I. **1.4-compat narrows:** a soul with **no** tombstones merges **as 1.4 except** this — same-id facts at **different** clocks no longer cross-clock-union tags/links/extra (winner-clock only). Equal-clock union and the id-less G-Set are unchanged.
+> ⚠️ Still **not** whole-fact replace for the concurrent case: equal-clock `tags`/`links`/`extra` merge across both facts even though the scalar tiebreak comes from `hi`.
+> ⚠️ **Scalar winner is `_scalar_lww_key` (§8a G3), independent of `tags`/`links`/`extra`.** The full `lww_key` (with `content_hash`) is used **only** for the id-less G-Set winner and the §5.4 sort.
 
 ### 4b. Facts WITHOUT `id` — G-Set, by **normalized text**
 - Membership key = `normalized_text` (§5). One slot per normalized text.
@@ -110,8 +112,8 @@ Post-merge fact list sorted **ascending** by:
 ```
 then `rebuild_index()`. `tags`/`links` emitted **sorted asc**. Soul-level key order unchanged; equality is **logical**, not byte-identity of the whole file.
 
-## 6. Deletes (v1)
-Out of the packet/merge path. `delete_fact` stays single-replica / coordinator-only. `merge` is **grow/update-only**. No "deletes converge" claim until tombstones (a future v1.x). Do not advertise offline delete sync.
+## 6. Deletes (v1.1–v1.4)
+Out of the packet/merge path. `delete_fact` stays single-replica / coordinator-only. `merge` is **grow/update-only**. No "deletes converge" claim. **Superseded for facts by §9 (v1.5 tombstones)** — `delete_fact` remains the tombstone-free local removal; `forget` is the convergent one.
 
 ## 7. Post-merge
 Canonical-sort facts (§5.4) → `rebuild_index()`. `last_etched = max`. Emit deterministic `{v,t}` for merged opaque keys.
@@ -140,8 +142,45 @@ The frozen encoding lock left these under-specified; resolved deterministically 
 - **G4 — soul-level scalar conflicts** (`profile`, `retention`): deterministic **`x if x==y else max(x,y)`**. `created = min`, `last_etched = max`.
 - **G5 — set semantics + normalization.** `content_hash` and `_scalar_hash` **dedup** `tags`/`links` (`sorted(set(...))`); merged facts store **NFC+stripped `text`**. Both required for order-independence (property tests caught the failures).
 
-## 9. Not needed in v1
-Version vectors / dots (not required for full-state CvRDT; add only for causality / δ-ops later). MV-Register (only if "never drop a concurrent same-id etch" becomes a requirement — v1 accepts LWW's deterministic drop).
+## 9. Forgettable Memory — tombstones (v1.5)
+
+The one deliberate merge-law re-open. A **tombstone** makes a delete *state* (not absence) so it survives a merge instead of being resurrected by a peer that still holds the fact. Facts only; sessions and opaque maps are out.
+
+### 9.1 Component & encoding
+A tombstone map: `key → deleted_at`, an **LWW max-register** per key (grow-only graveyard, no GC in v1).
+
+| Fact kind | Map key | Wire record (`memory.tombstones[]`) |
+|-----------|---------|-------------------------------------|
+| id-fact | `("id", id)` | `{ id, deleted_at }` |
+| id-less | `("txt", txt_hash)` | `{ txt_hash, deleted_at }` |
+
+- **`txt_hash`** = lowercase-hex SHA-256 of UTF-8 `normalize_text(text)` (§5.1) — the **same keying as the id-less G-Set**, NOT `content_hash`. Hash the text so the forgotten content does not linger.
+- **`deleted_at`** = RFC3339-Z, **required non-empty** on every write (`forget` → `_utcnow()`).
+- **Join per key** = `max(deleted_at)` (a later delete deepens the grave).
+- **Emit** `memory.tombstones` only when non-empty → a soul that never forgot is byte-identical to a ≤1.4 doc (every prior seal/wire golden stays valid).
+
+### 9.2 Suppression order (R1′ — mandatory, version-level)
+```
+1. join tombstone map:  key → max(deleted_at)
+2. join facts as §4, BUT drop any fact VERSION with deleted_at >= fact_clock
+   BEFORE it is grouped/field-merged (its scalars AND tags/links/extra all vanish)
+3. emit surviving facts in canonical order
+```
+`fact_clock = fact.timestamp or ""` (empty/missing sorts lowest). **delete-wins on ties** (`>=`).
+
+**Why version-level, not emit-level (R1 → R1′).** The 1.5 design first specified suppression *only* on the final emitted fact. The N-version differential falsified associativity (2026-07-27): a same-id field-merge unions tags/links across versions, so a **forgotten low-clock version** straddled by a tombstone (`fact_clock ≤ deleted_at < re-etch_clock`) would fold its `L1` into a *surviving* re-etch in one fold order but be suppressed-then-gone in the other. Dropping the outranked **version** before the field-merge is the field-level realization of the same "no zombie tags/links/extra" rule — and restores associativity. Suppression is still **whole-version** (never a partial field-strip); priority / `content_hash` must **not** resurrect a fact on an equal clock.
+
+### 9.3 Logical equality
+`logical_state` compares the **observable** fact set (tombstones applied, exactly as emit) **and** the raw tombstone map. Applying suppression in the oracle is what keeps `merge(a,a) == a` when `a` still carries a live fact under its own tombstone; including the raw map means losing a tombstone counts as a difference.
+
+### 9.4 Property laws (gate the label)
+T1 resurrection · T2 re-etch (`ts > deleted_at` wins) · T3 delete-wins tie · T4 no-zombie · T5 monotone graveyard · T6 id-less align (`txt_hash`, not `content_hash`) · T7 seal identity · T8 C/A/I with deletes. Hand-authored goldens required — property search under-samples delete corners.
+
+### 9.5 Interop / honesty
+≤1.4 readers residual-preserve the `tombstones` key but **keep the facts** (no forget convergence). A tombstone is a **lattice marker, not a secure erase** — old copies, backups, and already-sent packets are untouched. Convergence is *on merge*, not a broadcast wipe.
+
+## 10. Not needed in v1
+Version vectors / dots (not required for full-state CvRDT; add only for causality / δ-ops later — and for **tombstone GC**, a maybe-never additive layer, not a v1.5 debt). MV-Register (only if "never drop a concurrent same-id etch" becomes a requirement — v1 accepts LWW's deterministic drop).
 
 ---
 *Verified by an independent oracle and a two-implementation (N-version) differential against this frozen spec.*

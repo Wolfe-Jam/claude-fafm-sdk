@@ -38,7 +38,6 @@ from __future__ import annotations
 import binascii
 import struct
 from pathlib import Path
-from typing import Union
 
 import yaml
 
@@ -108,6 +107,7 @@ def normalize_for_seal(soul: Soul) -> Soul:
         custom=dict(soul.custom),
         extra=dict(soul.extra),
         memory_extra=dict(soul.memory_extra),
+        tombstones=dict(soul.tombstones),  # 1.5: carry the graveyard; to_doc emits it sorted
     )
     out.last_etched = soul.last_etched
     out.rebuild_index()
@@ -244,13 +244,13 @@ def merge_packet(local: Soul, data: bytes, *, public_key=None) -> Soul:
     return merge_souls(local, from_packet(data))
 
 
-def to_packet_file(soul: Soul, path: Union[str, Path]) -> Path:
+def to_packet_file(soul: Soul, path: str | Path) -> Path:
     """Seal a soul to an **unsigned** ``.fafmp`` file. Returns the written path."""
     p = Path(path)
     p.write_bytes(to_packet(soul))
     return p
 
 
-def from_packet_file(path: Union[str, Path]) -> Soul:
+def from_packet_file(path: str | Path) -> Soul:
     """Open an unsigned ``.fafmp`` file into a ``Soul`` (fails closed)."""
     return from_packet(Path(path).read_bytes())

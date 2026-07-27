@@ -240,7 +240,7 @@ def test_generate_keypair_unique() -> None:
 
 # ── S10 — [sign] missing → clean install hint, never a raw ImportError ────────
 def test_s10_sign_extra_missing_clean_message(monkeypatch: pytest.MonkeyPatch) -> None:
-    import claude_fafm_sdk.signer as signer
+    from claude_fafm_sdk import signer
 
     monkeypatch.setattr(signer, "_HAVE_CRYPTO", False)
     with pytest.raises(PacketError, match=r"claude-fafm-sdk\[sign\]"):

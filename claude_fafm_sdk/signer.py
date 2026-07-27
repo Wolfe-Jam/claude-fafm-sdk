@@ -21,9 +21,10 @@ no embedded public key (→ 1.4.1). ``SPK1`` ≠ ``FAFB``.
 """
 from __future__ import annotations
 
-from typing import Tuple, Union
+from typing import Union
 
 from .packet import (
+    _HEADER,
     FLAG_SIGNED,
     HEADER_SIZE,
     MAGIC,
@@ -31,7 +32,6 @@ from .packet import (
     VERSION,
     PacketError,
     _crc32,
-    _HEADER,
     _pack_header,
     _payload_to_soul,
     canonical_payload,
@@ -69,7 +69,7 @@ def _require_crypto() -> None:
 
 # ── keys ────────────────────────────────────────────────────────────────────
 
-def _private_pem(key: "Ed25519PrivateKey") -> bytes:
+def _private_pem(key: Ed25519PrivateKey) -> bytes:
     return key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.PKCS8,
@@ -77,14 +77,14 @@ def _private_pem(key: "Ed25519PrivateKey") -> bytes:
     )
 
 
-def _public_pem(key: "Ed25519PublicKey") -> bytes:
+def _public_pem(key: Ed25519PublicKey) -> bytes:
     return key.public_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo,
     )
 
 
-def generate_keypair() -> Tuple[bytes, bytes]:
+def generate_keypair() -> tuple[bytes, bytes]:
     """Fresh Ed25519 keypair as ``(private_pem, public_pem)`` (PKCS8 / SPKI PEM).
 
     The private PEM is unencrypted — the caller owns key-at-rest (CLI ``keygen``
@@ -95,7 +95,7 @@ def generate_keypair() -> Tuple[bytes, bytes]:
     return _private_pem(key), _public_pem(key.public_key())
 
 
-def keypair_from_seed(seed: bytes) -> Tuple[bytes, bytes]:
+def keypair_from_seed(seed: bytes) -> tuple[bytes, bytes]:
     """Deterministic ``(private_pem, public_pem)`` from a 32-byte seed.
 
     Reproducible cross-machine — used for **fixed test fixtures** so a golden wire
@@ -109,7 +109,7 @@ def keypair_from_seed(seed: bytes) -> Tuple[bytes, bytes]:
     return _private_pem(key), _public_pem(key.public_key())
 
 
-def load_private_key(pem: bytes) -> "Ed25519PrivateKey":
+def load_private_key(pem: bytes) -> Ed25519PrivateKey:
     """Load an unencrypted Ed25519 private key from PEM. Fails closed on non-Ed25519."""
     _require_crypto()
     try:
@@ -121,7 +121,7 @@ def load_private_key(pem: bytes) -> "Ed25519PrivateKey":
     return key
 
 
-def load_public_key(pem: bytes) -> "Ed25519PublicKey":
+def load_public_key(pem: bytes) -> Ed25519PublicKey:
     """Load an Ed25519 public key from PEM. Fails closed on non-Ed25519."""
     _require_crypto()
     try:
@@ -133,7 +133,7 @@ def load_public_key(pem: bytes) -> "Ed25519PublicKey":
     return key
 
 
-def _coerce_private(k: PrivateKeyLike) -> "Ed25519PrivateKey":
+def _coerce_private(k: PrivateKeyLike) -> Ed25519PrivateKey:
     if isinstance(k, (bytes, bytearray)):
         return load_private_key(bytes(k))
     if isinstance(k, Ed25519PrivateKey):
@@ -141,7 +141,7 @@ def _coerce_private(k: PrivateKeyLike) -> "Ed25519PrivateKey":
     raise PacketError("private_key must be PEM bytes or an Ed25519PrivateKey")
 
 
-def _coerce_public(k: PublicKeyLike) -> "Ed25519PublicKey":
+def _coerce_public(k: PublicKeyLike) -> Ed25519PublicKey:
     if isinstance(k, (bytes, bytearray)):
         return load_public_key(bytes(k))
     if isinstance(k, Ed25519PublicKey):

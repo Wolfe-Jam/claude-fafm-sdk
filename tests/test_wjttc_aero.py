@@ -64,7 +64,7 @@ def test_aero_namepoint_sends_flexi_header(monkeypatch):
             captured["url"], captured["headers"] = url, headers
 
     class FakeResult:
-        content = [type("Block", (), {"text": "soul-body"})()]
+        content: list = [type("Block", (), {"text": "soul-body"})()]  # noqa: RUF012
 
     class FakeClient:
         def __init__(self, transport):

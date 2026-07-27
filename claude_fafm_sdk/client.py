@@ -20,6 +20,7 @@ import logging
 import os
 from typing import Any
 
+
 # In flexi mode the server doesn't advertise tools via tools/list, so the MCP
 # client logs a benign "Tool … not listed by server" warning on every call even
 # though the call succeeds. Drop just that message (the mcp client logs under the

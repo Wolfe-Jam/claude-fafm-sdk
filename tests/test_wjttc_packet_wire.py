@@ -62,7 +62,7 @@ def test_wire_golden_opens_to_the_soul():
 
 
 def test_wire_header_fields():
-    magic, version, flags, crc, length = struct.unpack("<4sHHII", GOLDEN[:HEADER_SIZE])
+    magic, version, flags, _crc, length = struct.unpack("<4sHHII", GOLDEN[:HEADER_SIZE])
     assert magic == MAGIC == b"SPK1"
     assert version == VERSION == 1
     assert flags == 0

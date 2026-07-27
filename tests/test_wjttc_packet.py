@@ -18,23 +18,23 @@ from hypothesis import strategies as st
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from claude_fafm_sdk.merge import merge_souls, normalize_text, souls_equal  # noqa: E402
-from claude_fafm_sdk.packet import (  # noqa: E402
+from test_wjttc_merge_crdt import _soul
+
+from claude_fafm_sdk.merge import merge_souls, normalize_text, souls_equal
+from claude_fafm_sdk.packet import (
+    _HEADER,
     HEADER_SIZE,
     MAGIC,
     MAX_PAYLOAD,
     VERSION,
     PacketError,
-    _HEADER,
     from_packet,
     from_packet_file,
     merge_packet,
     to_packet,
     to_packet_file,
 )
-from claude_fafm_sdk.soul import Fact, Soul  # noqa: E402
-
-from test_wjttc_merge_crdt import _soul  # noqa: E402  reuse the extended residual strategy
+from claude_fafm_sdk.soul import Fact, Soul
 
 
 @st.composite

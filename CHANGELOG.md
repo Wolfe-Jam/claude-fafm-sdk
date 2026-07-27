@@ -3,6 +3,67 @@
 All notable changes to `claude-fafm-sdk` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.5.0] — 2026-07-27
+
+**Forgettable Memory.** Every edition so far only ever *grew* the memory — a delete was
+absence, and a merge resurrected the fact from any peer that still held it. 1.5 makes a
+delete **state**: `forget` writes a **tombstone** that travels in the soul, joins as an
+LWW max-register, and **suppresses** the fact on emit. So a delete now **converges**
+across 1.5+ replicas. This is the one deliberate re-open of the merge oracle — held to
+the same frozen-spec → dual-implementation differential → hand-golden gate as the join
+itself.
+
+### Added
+- **`forget` (convergent delete)** — `Soul.forget(id)` and `Soul.forget_text(text)`
+  remove the live fact **and** record a tombstone so a later merge won't resurrect it.
+  CLI: **`forget <id>`** and **`forget --text "…"`** (id-less, matched by normalized
+  text). The tombstone is always written — forgetting an id you no longer hold still
+  suppresses it on merge.
+- **Tombstone lattice (`MERGE.md` §9)** — `memory.tombstones`: a list of
+  `{id, deleted_at}` / `{txt_hash, deleted_at}`. Join = `max(deleted_at)` per key
+  (grow-only graveyard). Emit order: join tombstones → join facts → suppress any fact a
+  tombstone outranks (`deleted_at >= fact_clock`, **delete-wins** on ties). Suppression
+  is whole-fact — no zombie tags/links/extra. `txt_hash` = SHA-256 of `normalize_text`
+  (the id-less G-Set key), so a forgotten fact's content does not linger.
+- **Re-etch beats a tombstone** — a later write (`timestamp > deleted_at`) outranks it;
+  the tombstone stays (grow-only) and simply loses until a newer delete appears.
+- **Seal + equality carry tombstones** — `normalize_for_seal` / `to_canonical_yaml`
+  include them (sorted); `souls_equal` compares the observable fact set **and** the raw
+  tombstone map. A soul that never forgot emits **no** `tombstones` key → **byte-identical
+  to a 1.4 seal** (every prior wire/seal golden still holds).
+
+### Changed — merge law (Rule T; the second delta)
+Convergent forget forced a second, smaller merge-law change. Field-level **`tags`/`links`/`extra`
+for a same-`id` fact now follow the winning clock**: concurrent (**equal-clock**) versions still
+union — add-wins, unchanged — but a **strictly lower-clock** version no longer contributes. Cross-
+clock union (1.1–1.4) is **not associative** once a tombstone can retroactively invalidate a low-
+clock version, so it had to go. Consequence: a soul with **no** tombstones now merges **as 1.4
+except this** — different-clock same-`id` tag/link/extra union is gone (winner-clock only). Byte
+identity of a single soul's seal is unaffected; the id-less G-Set is unaffected.
+
+### Property laws (gated, dual-impl + hand goldens)
+T1 resurrection · T2 re-etch · T3 delete-wins tie · T4 no-zombie · T5 monotone graveyard ·
+T6 id-less align (`txt_hash`, not `content_hash`) · T7 seal identity · T8 C/A/I with deletes ·
+**Rule T** (winner-clock tags, with and without tombstones).
+
+### Interop / honesty
+- A **≤1.4** reader residual-preserves the `tombstones` key but **keeps the facts** — no
+  forget convergence (documented old-reader limit; preserving the key is what lets a later
+  1.5 merge apply it).
+- A tombstone is a **lattice marker, not a secure erase** — old copies, backups, and
+  already-sent packets are untouched. Convergence is *on merge*, not a broadcast wipe.
+- **No GC** in v1 (grow-only graveyard). At personal-memory scale the tombstones are
+  negligible; GC, if ever needed, is an additive layer on this lattice, not a rewrite.
+
+### Verification
+```
+pip install claude-fafm-sdk                                    # base — zero-crypto
+claude-fafm-sdk init -f soul.fafm --demo
+claude-fafm-sdk forget install                                 # tombstone an id-fact
+claude-fafm-sdk forget --text "priority vocab: ephemeral, standard, high, critical"
+uvx claude-fafm-sdk receipt                                    # still GREEN
+```
+
 ## [1.4.0] — 2026-07-27
 
 **Verifiable Provenance.** 1.3 proved a packet travels *intact*; 1.4 lets it prove

@@ -13,8 +13,8 @@ from __future__ import annotations
 
 import json
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from . import __version__
 from .merge import souls_equal
@@ -45,7 +45,7 @@ def run_receipt(as_json: bool = False) -> int:
         try:
             ok = bool(fn())
             detail = ""
-        except Exception as e:  # a raised falsifier that shouldn't raise = fail
+        except Exception as e:  # noqa: BLE001 — raised falsifier that shouldn't raise = fail
             ok, detail = False, f"{type(e).__name__}: {e}"
         checks.append({"name": name, "ok": ok, "detail": detail})
 

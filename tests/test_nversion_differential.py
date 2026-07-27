@@ -26,15 +26,15 @@ from hypothesis import strategies as st
 # ensure the sibling clean-room module is importable regardless of pytest mode
 sys.path.insert(0, os.path.dirname(__file__))
 
-from claude_fafm_sdk.merge import content_hash as sdk_chash  # noqa: E402
-from claude_fafm_sdk.merge import merge_souls as sdk_merge  # noqa: E402
-from claude_fafm_sdk.merge import souls_equal as sdk_equal  # noqa: E402
-from claude_fafm_sdk.soul import Fact, Soul  # noqa: E402
+import reference_merge
+from reference_merge import content_hash as ref_chash
+from reference_merge import merge_souls as ref_merge
+from reference_merge import souls_equal as ref_equal
 
-import reference_merge  # noqa: E402
-from reference_merge import content_hash as ref_chash  # noqa: E402
-from reference_merge import merge_souls as ref_merge  # noqa: E402
-from reference_merge import souls_equal as ref_equal  # noqa: E402
+from claude_fafm_sdk.merge import content_hash as sdk_chash
+from claude_fafm_sdk.merge import merge_souls as sdk_merge
+from claude_fafm_sdk.merge import souls_equal as sdk_equal
+from claude_fafm_sdk.soul import Fact, Soul
 
 # whole module is gated on the clean-room impl being ready
 pytestmark = pytest.mark.skipif(
@@ -99,6 +99,24 @@ _sessions = st.lists(
     max_size=3,
 )
 
+# Tombstones (1.5) — keys deliberately overlap the fact id/text space so suppression,
+# re-etch (fact ts > deleted_at), and delete-wins ties all fire in the differential.
+# deleted_at values interleave the fact timestamps above. Keys built via the data-model
+# txt_hash so a ("txt", …) tombstone actually targets a generated "alpha"/"café" fact.
+from claude_fafm_sdk.soul import txt_hash as _dm_txt_hash
+
+_tomb_keys = st.sampled_from(
+    [
+        ("id", "a"), ("id", "b"), ("id", "c"), ("id", "ghost"),
+        ("txt", _dm_txt_hash("alpha")), ("txt", _dm_txt_hash("beta")),
+        ("txt", _dm_txt_hash("café")), ("txt", _dm_txt_hash("orphan")),
+    ]
+)
+_tomb_when = st.sampled_from(
+    ["2026-01-01T00:00:00Z", "2026-01-02T00:00:00Z", "2026-03-01T00:00:00Z"]
+)
+_tombstones = st.dictionaries(_tomb_keys, _tomb_when, max_size=3)
+
 
 @st.composite
 def _soul(draw) -> Soul:
@@ -112,6 +130,7 @@ def _soul(draw) -> Soul:
         custom=draw(_opaque),
         extra=draw(_opaque),
         memory_extra=draw(_opaque),
+        tombstones=draw(_tombstones),
     )
 
 
@@ -221,12 +240,17 @@ def test_c_tags_links_set_union():
     assert set(fx.links) == {"L1", "L2"}
 
 
-def test_c_fact_extra_per_key_lww_union():
+def test_c_fact_extra_rule_t_winner_clock():
+    # Rule T (1.5): different-clock same-id extra → winner-clock only; equal-clock unions.
     a = _s(Fact(text="f", id="x", timestamp="2026-01-01T00:00:00Z", source="s",
                 type=None, priority="standard", extra={"k1": 1}))
     b = _s(Fact(text="f", id="x", timestamp="2026-01-02T00:00:00Z", extra={"k2": 2}))
-    fx = ref_merge(a, b).get_fact("x")
-    assert fx.extra.get("k1") == 1 and fx.extra.get("k2") == 2
+    assert ref_merge(a, b).get_fact("x").extra == {"k2": 2}  # winner clock only
+
+    c = _s(Fact(text="f", id="x", timestamp="2026-01-01T00:00:00Z", extra={"k1": 1}))
+    d = _s(Fact(text="f", id="x", timestamp="2026-01-01T00:00:00Z", extra={"k2": 2}))
+    fcd = ref_merge(c, d).get_fact("x")  # equal clock → union
+    assert fcd.extra.get("k1") == 1 and fcd.extra.get("k2") == 2
 
 
 def test_c_opaque_stamped_beats_unstamped():

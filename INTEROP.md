@@ -143,6 +143,7 @@ Aligned with schema guidance: unknown fields are permitted.
 | **Document / `memory` subtrees** | **Preserve** unknown and optional subtrees present on load when saving |
 | **Top-level residual keys** | Keys outside the known set (`version`/`profile`/`namepoint`/`created`/`last_etched`/`retention`/`index`/`memory`) live in `Soul.extra` and are re-emitted after modeled keys; residuals never overwrite modeled keys |
 | **`memory` residual keys** | Keys outside `facts`/`sessions`/`preferences`/`custom` live in `Soul.memory_extra` and are re-emitted under `memory` |
+| **`memory.tombstones` (v1.5 forward-compat)** | A **v1.5** known key (convergent forget — `MERGE.md` §9). A **≤1.4** reader has never heard of it, so it lands in `memory_extra` and is **preserved on load→save but not honored** — the reader keeps the forgotten facts (no delete convergence). This is the documented old-reader limit; preserving the key (not stripping it) is what lets a later 1.5 merge still apply it. |
 | **Strip (forbidden in v1.0 structured save)** | Silently dropping `index`, residual unknowns, or blanking non-empty `sessions` / `preferences` / `custom` |
 
 **Voice note:** `FAFMemory.from_file` / `to_file` are raw text I/O (byte-identical). They do not interpret unknowns; they pass the file through. Structured writers (`Soul`) must still honor this section.
