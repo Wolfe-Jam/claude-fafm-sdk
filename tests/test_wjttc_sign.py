@@ -17,6 +17,11 @@ import struct
 
 import pytest
 
+# Signing needs the optional [sign] extra. In the zero-crypto base config
+# (what a plain `pip install` and the base CI job give you) these tests skip —
+# the base SDK + Provable Receipt stay crypto-free; the `sign` CI job runs them.
+pytest.importorskip("cryptography")
+
 from claude_fafm_sdk import (
     PacketError,
     from_packet,

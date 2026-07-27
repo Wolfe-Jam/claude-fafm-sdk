@@ -1,7 +1,10 @@
 name: CI
 
 # Doctrine (FAF ecosystem):
-#   - "test" job is the ONLY gate. Red here = real, actionable failure.
+#   - "test" gate: base config (.[dev], zero-crypto). Proves the base SDK +
+#     Provable Receipt work with NO optional deps. Sign tests skip here.
+#   - "sign" gate: .[sign,dev]. Proves optional Ed25519 Verifiable Provenance.
+#     Both gates are real — red = actionable failure.
 #   - Lint runs continue-on-error (visibility, not a gate).
 #   - Compat matrix runs continue-on-error (Python version drift = observability).
 #   - Live memory.faf.one test is gated by MCPAAS_LIVE and workflow_dispatch-only.
@@ -33,6 +36,27 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Test (offline)
+        run: pytest -v
+
+  # THE PROVENANCE GATE. Installs the [sign] extra so the Ed25519 sign/verify
+  # suite runs (it skips in the base "test" job). Red = signing is broken.
+  sign:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install package + [sign] + dev deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[sign,dev]"
+
+      - name: Test (offline, with signing)
         run: pytest -v
 
   # Advisory only. Reports issues, never blocks the badge.

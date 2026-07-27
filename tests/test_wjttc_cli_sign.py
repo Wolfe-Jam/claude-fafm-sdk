@@ -9,6 +9,12 @@ from __future__ import annotations
 import stat
 from pathlib import Path
 
+import pytest
+
+# Signing needs the optional [sign] extra. Skip in the zero-crypto base config
+# (base `pip install` / base CI job); the `sign` CI job installs [sign] and runs these.
+pytest.importorskip("cryptography")
+
 from claude_fafm_sdk.cli import main
 from claude_fafm_sdk.soul import Soul
 
