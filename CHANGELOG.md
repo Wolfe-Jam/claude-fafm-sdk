@@ -3,6 +3,30 @@
 All notable changes to `claude-fafm-sdk` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.5.1] — 2026-07-27
+
+**Forgettable everywhere — hosted forget converges.** 1.5.0 made a delete converge on the
+**packet** path (`seal` / `merge`). But the hosted **namepoint** path (`pull` / `sync`) read only
+`memory.facts` and reconciled **additively** — so a peer that still held a forgotten fact would
+**re-introduce it on pull**. That falsified "convergent delete" on the path the CLI advertises for
+cross-device use. 1.5.1 routes the hosted path through the **same CvRDT** as the packet path.
+
+### Fixed
+- **`namepoint pull` / `sync` now reconcile via `merge_souls`** (the CvRDT), not an additive
+  fact-only re-add. Forget now converges across every device on a namepoint — a hosted `pull` that
+  meets a peer still holding a forgotten fact keeps it forgotten (the local tombstone suppresses it).
+- **New `Namepoint.soul()`** — the structured hosted read returns the **full** soul (facts **and
+  tombstones**), so the reconcile has the graveyard it needs. The parsed soul is re-homed to the
+  local namepoint so the merge is well-defined. `facts()` (used by `recall`) is unchanged.
+- **Retired the additive `_merge_into`** on the hosted path (it was the wrong merge function).
+
+### Notes
+- **No wire change.** `push` already stored `memory.tombstones` in the hosted YAML; only the read /
+  reconcile side needed the CvRDT. Id-less tombstones round-trip by `txt_hash` (stored on the wire),
+  so id-vs-text keying survives the hosted YAML unchanged.
+- Convergent forget now holds on **both** transports — the packet CvRDT (`seal`/`merge`) and the
+  hosted namepoint (`pull`/`sync`). A tombstone is still a lattice marker, **not** a secure erase.
+
 ## [1.5.0] — 2026-07-27
 
 **Forgettable Memory.** Every edition so far only ever *grew* the memory — a delete was

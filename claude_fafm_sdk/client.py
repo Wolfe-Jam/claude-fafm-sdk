@@ -127,6 +127,41 @@ class Namepoint:
             return []
         return [Fact.from_obj(f) for f in ((doc.get("memory") or {}).get("facts") or [])]
 
+    async def soul(self, *, namepoint: str | None = None) -> Any:
+        """Parse the hosted document into a FULL ``Soul`` — facts **and tombstones**
+        (the whole modeled state), so a hosted ``pull`` / ``sync`` can reconcile
+        through the CvRDT ``merge_souls`` and **convergent forget holds across
+        devices**, not only on the packet path. ``facts()`` alone drops the
+        graveyard and an additive re-add resurrects a forgotten fact.
+
+        Returns ``None`` when the hosted body isn't a ``.fafm`` YAML mapping (e.g. a
+        markdown / voice soul) — the caller then has nothing structured to merge.
+        ``namepoint`` re-homes the parsed soul so it merges into a local soul of that
+        handle (``merge_souls`` requires a matching namepoint).
+        """
+        from io import StringIO
+
+        import yaml
+
+        from .soul import Soul
+
+        body = await self.pull()
+        yaml_body = body.split("\n---\n", 1)[-1]
+        try:
+            doc = yaml.safe_load(StringIO(yaml_body))
+        except yaml.YAMLError:
+            return None
+        if not isinstance(doc, dict):
+            return None
+        try:
+            hosted = Soul.from_doc(doc, namepoint_fallback=namepoint or self.handle)
+        except (ValueError, TypeError):
+            # from_doc: missing namepoint → ValueError; non-mapping body → TypeError
+            return None
+        if namepoint is not None:
+            hosted.namepoint = namepoint  # re-home so merge_souls is well-defined
+        return hosted
+
     async def replace(self, content: str) -> str:
         """Replace the ENTIRE hosted soul with ``content`` (``write_soul`` replace
         mode). The `.fafm`-native write: the namepoint holds the whole document, so

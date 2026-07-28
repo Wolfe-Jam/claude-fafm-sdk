@@ -26,7 +26,13 @@ from claude_fafm_sdk.packet import (
     normalize_for_seal,
     to_packet,
 )
-from claude_fafm_sdk.soul import Fact, Soul, txt_hash
+from claude_fafm_sdk.soul import (
+    Fact,
+    Soul,
+    _tombstones_from_wire,
+    _tombstones_to_wire,
+    txt_hash,
+)
 
 NP = "@tomb"
 
@@ -282,3 +288,86 @@ def test_reload_roundtrip_preserves_tombstones(tmp_path):
     s.save(p)
     again = Soul.load(p)
     assert again.tombstones == s.tombstones
+
+
+# ── wire robustness: memory.tombstones parse is lenient (fail-open on load) ────
+def test_wire_parse_skips_malformed_rows():
+    raw = [
+        {"id": "keep", "deleted_at": T1},          # valid id row
+        {"txt_hash": H_ALPHA, "deleted_at": T2},   # valid txt row
+        {"id": "nope"},                            # missing deleted_at → skip
+        {"deleted_at": T1},                        # neither id nor txt_hash → skip
+        {"id": "bad", "deleted_at": ""},           # empty deleted_at → skip
+        {"id": "bad2", "deleted_at": 12345},       # non-string deleted_at → skip
+        {"id": None, "deleted_at": T1},            # null id → skip
+        "not-a-dict",                              # non-mapping → skip
+    ]
+    assert _tombstones_from_wire(raw) == {("id", "keep"): T1, ("txt", H_ALPHA): T2}
+
+
+def test_wire_parse_dup_keys_take_max():
+    raw = [
+        {"id": "x", "deleted_at": T1},
+        {"id": "x", "deleted_at": T3},   # max
+        {"id": "x", "deleted_at": T2},
+    ]
+    assert _tombstones_from_wire(raw) == {("id", "x"): T3}
+
+
+def test_wire_parse_non_list_is_empty():
+    assert _tombstones_from_wire(None) == {}
+    assert _tombstones_from_wire({"id": "x"}) == {}   # a mapping, not a list
+    assert _tombstones_from_wire("") == {}
+
+
+def test_wire_roundtrip_is_canonical_and_sorted():
+    tombs = {("txt", H_ALPHA): T2, ("id", "b"): T1, ("id", "a"): T3}
+    wire = _tombstones_to_wire(tombs)
+    # canonical order by (kind, key): ("id","a") < ("id","b") < ("txt", …)
+    assert [next(iter(r)) for r in wire] == ["id", "id", "txt_hash"]
+    assert _tombstones_from_wire(wire) == tombs   # lossless round-trip
+
+
+# ── seal: tombstone list order is canonical → forget order can't change bytes ──
+def test_seal_tombstone_insertion_order_independent():
+    a = _s(Fact(text="k", id="k", timestamp=T1))
+    a.forget("z1", deleted_at=T1)
+    a.forget("z2", deleted_at=T2)
+    a.forget("z3", deleted_at=T3)
+    b = _s(Fact(text="k", id="k", timestamp=T1))
+    b.forget("z3", deleted_at=T3)   # same graveyard, opposite forget order
+    b.forget("z1", deleted_at=T1)
+    b.forget("z2", deleted_at=T2)
+    assert to_packet(a) == to_packet(b)   # identical tombstones → identical sealed bytes
+
+
+# ── forget edge cases (Soul API) ──────────────────────────────────────────────
+def test_forget_on_empty_soul_records_tombstone():
+    s = _s()
+    assert s.forget("ghost") is False          # nothing live to remove
+    assert ("id", "ghost") in s.tombstones     # …but the tombstone is recorded
+
+
+def test_double_forget_deepens_never_regresses():
+    s = _s()
+    s.forget("x", deleted_at=T1)
+    s.forget("x", deleted_at=T3)               # later → deepens
+    assert s.tombstones[("id", "x")] == T3
+    s.forget("x", deleted_at=T2)               # earlier → must NOT regress (grow-only)
+    assert s.tombstones[("id", "x")] == T3
+
+
+def test_forget_id_and_text_are_independent_keys():
+    # an id-fact and an id-less fact with the SAME text are distinct tombstone keys.
+    s = _s(Fact(text="alpha", id="a", timestamp=T1), Fact(text="alpha", timestamp=T1))
+    s.forget("a", deleted_at=T1)                       # id tombstone only
+    assert ("id", "a") in s.tombstones
+    assert ("txt", H_ALPHA) not in s.tombstones
+    assert any(f.id is None and f.text == "alpha" for f in s.facts)  # id-less "alpha" survives
+
+
+def test_forget_removes_forgotten_fact_from_local_recall():
+    s = _s(Fact(text="secret", id="sec", timestamp=T1), Fact(text="keep", id="k", timestamp=T1))
+    s.forget("sec")
+    assert s.get_fact("sec") is None
+    assert [f.id for f in s.facts] == ["k"]            # gone from the live set immediately

@@ -8,7 +8,7 @@ import os
 
 import pytest
 
-from claude_fafm_sdk import Soul, cli
+from claude_fafm_sdk import Fact, Soul, cli
 from claude_fafm_sdk.cli import main
 
 
@@ -135,6 +135,99 @@ def test_forget_needs_exactly_one_target(tmp_path, monkeypatch, capsys):
     assert "exactly one" in capsys.readouterr().out
     # both id and --text → also rejected (no ambiguity)
     assert main(["forget", "why", "--text", "x"]) == 1
+
+
+def test_cli_merge_applies_convergent_forget_end_to_end(tmp_path, monkeypatch):
+    # The full CLI transport for Forgettable Memory: A forgets a fact and seals a
+    # packet; B still holds an OLDER copy; `merge` must apply the tombstone and NOT
+    # resurrect it. Timing is deterministic (B's fact is dated 2020, well before the
+    # forget) so this can never flip to the re-etch branch.
+    monkeypatch.chdir(tmp_path)
+    assert main(["init", "-f", "a.fafm", "-n", "conv", "--force"]) == 0
+    assert main(["etch", "-f", "a.fafm", "keep-me", "--id", "keep"]) == 0
+    assert main(["etch", "-f", "a.fafm", "forget-me", "--id", "drop"]) == 0
+    assert main(["forget", "drop", "-f", "a.fafm"]) == 0
+    assert main(["seal", "-f", "a.fafm", "-o", "a.fafmp"]) == 0
+
+    np = Soul.load(tmp_path / "a.fafm").namepoint          # match A's namepoint
+    b = Soul(np, facts=[Fact(text="forget-me", id="drop", timestamp="2020-01-01T00:00:00Z")])
+    b.save(tmp_path / "b.fafm")
+
+    assert main(["merge", "a.fafmp", "-f", "b.fafm"]) == 0
+    merged = Soul.load(tmp_path / "b.fafm")
+    assert merged.get_fact("drop") is None                # convergent forget applied via CLI
+    assert ("id", "drop") in merged.tombstones            # the graveyard traveled in the packet
+    assert merged.get_fact("keep") is not None            # unrelated fact untouched
+
+
+def _fake_hosted(monkeypatch, yaml_body: str) -> None:
+    """Point the namepoint client at an in-memory hosted doc (no network)."""
+    from claude_fafm_sdk import client as client_mod
+
+    class FakeTransport:
+        def __init__(self, url, headers=None):
+            pass
+
+    class FakeResult:
+        content = [type("Block", (), {"text": yaml_body})()]  # noqa: RUF012
+
+    class FakeClient:
+        def __init__(self, transport):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def call_tool(self, name, args):
+            return FakeResult()
+
+    monkeypatch.setattr(client_mod, "_client_classes", lambda: (FakeClient, FakeTransport))
+
+
+def test_hosted_pull_applies_tombstones_no_resurrection(tmp_path, monkeypatch):
+    # 1.5.1 — the hosted pull now reconciles via the CvRDT, so a forgotten fact is
+    # NOT resurrected by a peer that still holds it. (1.5.0's additive pull DID
+    # resurrect it — this is the oracle-blessed golden.)
+    monkeypatch.chdir(tmp_path)
+    NP = "@claude-code:conv"
+    local = Soul(NP)
+    local.forget("x", deleted_at="2026-06-01T00:00:00Z")   # forgot x; no live x
+    local.save(tmp_path / "a.fafm")
+    # hosted store: a peer re-pushed x, dated OLDER than the forget
+    hosted = Soul(NP, facts=[Fact(text="secret", id="x", timestamp="2020-01-01T00:00:00Z")])
+    _fake_hosted(monkeypatch, hosted.to_yaml())
+
+    assert main(["namepoint", "pull", "-f", "a.fafm", "--handle", "conv"]) == 0
+    merged = Soul.load(tmp_path / "a.fafm")
+    assert merged.get_fact("x") is None                    # stayed forgotten (the fix)
+    assert ("id", "x") in merged.tombstones
+
+
+def test_hosted_pull_still_merges_new_facts(tmp_path, monkeypatch):
+    # regression: pull still brings in genuinely new hosted facts (merge_souls unions).
+    monkeypatch.chdir(tmp_path)
+    NP = "@claude-code:conv"
+    local = Soul(NP, facts=[Fact(text="mine", id="m", timestamp="2026-01-01T00:00:00Z")])
+    local.save(tmp_path / "a.fafm")
+    hosted = Soul(NP, facts=[Fact(text="theirs", id="t", timestamp="2026-01-01T00:00:00Z")])
+    _fake_hosted(monkeypatch, hosted.to_yaml())
+
+    assert main(["namepoint", "pull", "-f", "a.fafm", "--handle", "conv"]) == 0
+    merged = Soul.load(tmp_path / "a.fafm")
+    assert merged.get_fact("m") is not None and merged.get_fact("t") is not None
+
+
+def test_hosted_pull_markdown_soul_is_noop(tmp_path, monkeypatch):
+    # a hosted markdown/voice soul (not .fafm YAML) → nothing to merge, local untouched.
+    monkeypatch.chdir(tmp_path)
+    local = Soul("@claude-code:conv", facts=[Fact(text="mine", id="m", timestamp="2026-01-01T00:00:00Z")])
+    local.save(tmp_path / "a.fafm")
+    _fake_hosted(monkeypatch, "# just a markdown voice soul\n\nno structured facts here")
+    assert main(["namepoint", "pull", "-f", "a.fafm", "--handle", "conv"]) == 0
+    assert Soul.load(tmp_path / "a.fafm").get_fact("m") is not None
 
 
 def test_engine_cli_init_cta_nudges_zero_config(tmp_path, monkeypatch, capsys):

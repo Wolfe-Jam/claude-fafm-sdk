@@ -188,6 +188,23 @@ def test_merge_signed_with_key_ingests() -> None:
     assert {f.text for f in merged.facts} == {"alpha", "beta"}
 
 
+def test_signed_packet_carries_tombstones_1_4_x_1_5() -> None:
+    # Provenance (1.4) over a Forgettable soul (1.5): the graveyard is part of the
+    # canonical payload the signature covers, so it survives sign → verify intact.
+    priv, pub = _fixture_keys()
+    soul = Soul("@sign", facts=[Fact(text="keep", id="k")])
+    soul.forget("gone", deleted_at="2026-06-01T00:00:00Z")
+    signed = sign_packet(soul, priv)
+    opened = verify_packet(signed, pub)
+    assert ("id", "gone") in opened.tombstones
+    assert souls_equal(opened, soul)
+    # tampering with a signed tombstoned packet still fails closed
+    bad = bytearray(signed)
+    bad[HEADER_SIZE] ^= 0xFF
+    with pytest.raises(PacketError):
+        verify_packet(bytes(bad), pub)
+
+
 def test_merge_signed_with_wrong_key_rejects_no_clobber() -> None:
     priv, _pub = _fixture_keys()
     signed = sign_packet(_fixture_soul(), priv)
