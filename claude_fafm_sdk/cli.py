@@ -19,6 +19,7 @@ from pathlib import Path
 
 from . import __version__
 from .identity import Identity
+from .merge import merge_souls
 from .packet import (
     PACKET_SUFFIX,
     PacketError,
@@ -435,25 +436,6 @@ def cmd_namepoint_status(args: argparse.Namespace) -> int:
     return 0
 
 
-def _merge_into(soul: Soul, incoming: list) -> int:
-    """Add facts the local soul lacks — matched by id, else by text — preserving
-    each fact's fields (incl. timestamp). Additive: a local id is never overwritten
-    (your edits win). Returns the count added. (Set/recency reconcile, not semantic
-    merge — that's the paid intel.)"""
-    texts = {f.text for f in soul.facts}
-    added = 0
-    for f in incoming:
-        if f.id is not None:
-            if soul.get_fact(f.id) is None:
-                soul.add(f)
-                added += 1
-        elif f.text not in texts:
-            soul.add(f)
-            texts.add(f.text)
-            added += 1
-    return added
-
-
 def cmd_namepoint_push(args: argparse.Namespace) -> int:
     """Upload the local soul to the namepoint. The `.fafm`-native write: replace the
     whole hosted document with our `.fafm` (ids + structure intact, idempotent).
@@ -494,9 +476,11 @@ def cmd_namepoint_push(args: argparse.Namespace) -> int:
 
 
 def cmd_namepoint_pull(args: argparse.Namespace) -> int:
-    """Merge hosted facts into the local soul (additive, by id). Reads are public —
-    no key. If the hosted soul is a `.fafm` document, facts come back structured
-    (ids intact); a markdown/voice soul simply yields no structured facts."""
+    """Reconcile the hosted soul into the local one via the **CvRDT merge** (public
+    read, no key). This is the same `merge_souls` as the packet path, so a hosted
+    `pull` **applies tombstones** — a fact you forgot stays forgotten instead of
+    being resurrected by a peer that still holds it (Forgettable everywhere, 1.5.1).
+    A markdown/voice soul (no structured `.fafm`) simply yields nothing to merge."""
     import asyncio
 
     from .client import Namepoint, NamepointUnavailable
@@ -511,25 +495,34 @@ def cmd_namepoint_pull(args: argparse.Namespace) -> int:
         print("no namepoint yet — claim or push first, or pass --handle <name>")
         return 1
 
-    async def run() -> list:
-        return await Namepoint(handle).facts()  # public read, no key
+    async def run():
+        # full hosted state (facts + tombstones), re-homed so merge_souls is defined
+        return await Namepoint(handle).soul(namepoint=soul.namepoint)
 
     try:
         hosted = asyncio.run(run())
     except NamepointUnavailable as e:
         print(str(e))
         return 1
-    added = _merge_into(soul, hosted)
-    soul.save(path)
-    print(f"⬇️  pulled {added} new fact{'s' if added != 1 else ''} from {handle} "
-          f"→ ./{path}  ({len(soul.facts)} total)")
+    if hosted is None:
+        print(f"⬇️  {handle} has no structured .fafm soul — nothing to merge (./{path} unchanged)")
+        return 0
+    before = len(soul.facts)
+    merged = merge_souls(soul, hosted)  # CvRDT: unions facts, applies tombstones
+    merged.save(path)
+    delta = len(merged.facts) - before
+    sign = "+" if delta >= 0 else ""
+    print(f"⬇️  reconciled {handle} → ./{path}  (CvRDT merge; {sign}{delta} net, "
+          f"{len(merged.facts)} facts)")
     return 0
 
 
 def cmd_namepoint_sync(args: argparse.Namespace) -> int:
-    """Reconcile local <-> hosted: merge hosted facts into the local soul (by id),
-    then replace the hosted document with the union. `.fafm`-native + idempotent.
-    A-for-first-touch: auto-provisions an anonymous identity if none."""
+    """Reconcile local <-> hosted via the **CvRDT merge**, then replace the hosted
+    document with the reconciled soul. `.fafm`-native + idempotent, and — unlike a
+    plain additive sync — it **applies tombstones both ways**, so a forget converges
+    across every device on the namepoint (1.5.1). A-for-first-touch: auto-provisions
+    an anonymous identity if none."""
     import asyncio
 
     from . import identity as idmod
@@ -540,29 +533,33 @@ def cmd_namepoint_sync(args: argparse.Namespace) -> int:
         print(f"{path} not found — run: claude-fafm-sdk init")
         return 1
     soul = Soul.load(path)
+    before = len(soul.facts)
     try:
         ident, fresh = _identity_for_write()
     except idmod.IdentityError as e:
         print(str(e))
         return 1
 
-    async def run() -> int:
+    async def run() -> Soul:
         np = Namepoint(ident.namepoint, api_key=ident.api_key)
-        pulled = _merge_into(soul, await np.facts())  # hosted → local (by id)
-        await np.replace(soul.to_yaml())  # write the union back as the soul
-        return pulled
+        hosted = await np.soul(namepoint=soul.namepoint)  # full state (facts + tombstones)
+        reconciled = merge_souls(soul, hosted) if hosted is not None else soul
+        await np.replace(reconciled.to_yaml())  # write the reconciled soul back
+        return reconciled
 
     try:
-        pulled = asyncio.run(run())
+        merged = asyncio.run(run())
     except (NamepointUnavailable, NamepointAuthRequired) as e:
         print(str(e))
         return 1
-    soul.save(path)
-    _record_home(soul, path, ident.namepoint)
+    merged.save(path)
+    _record_home(merged, path, ident.namepoint)
     if fresh:
         _print_anon_reminder(ident)
-    print(f"🔄  synced {ident.namepoint} ↔ ./{path}  (↓ {pulled} new local; union pushed; "
-          f"{len(soul.facts)} facts)")
+    delta = len(merged.facts) - before
+    sign = "+" if delta >= 0 else ""
+    print(f"🔄  synced {ident.namepoint} ↔ ./{path}  (CvRDT reconcile; {sign}{delta} net, "
+          f"{len(merged.facts)} facts)")
     print(f"    live: {ident.url}")
     return 0
 
