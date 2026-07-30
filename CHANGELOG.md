@@ -3,6 +3,21 @@
 All notable changes to `claude-fafm-sdk` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.7.0] — 2026-07-30
+
+**Debt + residual-risk.** See the graveyard cost; surface outside-soul copies. Never auto-drop tombstones.
+
+### Added
+- **`debt()` / CLI `debt`** — tombstone count, approx bytes, oldest/newest; optional
+  `--purge-eligible-after` is **mark-only** (does not delete).
+- **`risk_scan` / CLI `risk-scan`** — path-bounded scan for `.fafm` / `.fafmp` copies;
+  honesty note (not wipe / not RTBF). No implicit home crawl.
+- Goldens: `tests/test_wjttc_debt_residual.py`.
+
+### Notes
+- No merge-law change. No view cache (still experimental / deferred).
+- Compact/GC remains 2.0+.
+
 ## [1.6.0] — 2026-07-30
 
 **Policy → tombstone.** Policies *emit* forget via existing `forget` / `forget_text`; MERGE §9 unchanged.

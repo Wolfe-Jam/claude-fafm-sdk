@@ -161,6 +161,45 @@ def cmd_forget(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_debt(args: argparse.Namespace) -> int:
+    """Show visible tombstone debt (1.7). Never deletes. Eligible = mark only."""
+    path = Path(args.file)
+    if not path.exists():
+        print(f"{path} not found — run: claude-fafm-sdk init")
+        return 1
+    soul = Soul.load(path)
+    report = soul.debt(at=args.at, purge_eligible_after=args.purge_eligible_after)
+    print(f"debt on ./{path}  ({soul.namepoint})")
+    print(f"  tombstones:     {report.count}")
+    print(f"  approx bytes:   {report.bytes}")
+    print(f"  oldest:         {report.oldest or '—'}")
+    print(f"  newest:         {report.newest or '—'}")
+    if args.purge_eligible_after:
+        print(
+            f"  purge_eligible: {report.purge_eligible_count}  "
+            f"(after {args.purge_eligible_after} @ {args.at or '—'}; mark only — not deleted)"
+        )
+    print("  note: grow-only graveyard — debt is visible; auto-GC is not 1.7")
+    return 0
+
+
+def cmd_risk_scan(args: argparse.Namespace) -> int:
+    """Path-bounded residual scan (1.7) — copies the lattice cannot erase."""
+    from .residual import risk_scan
+
+    paths = list(args.paths or [])
+    if not paths:
+        print("risk-scan needs explicit paths (e.g. . ./backup soul.fafm) — no home crawl")
+        return 1
+    report = risk_scan(paths, max_files=args.max_files)
+    print(f"residual scan — {report.count} hit(s)")
+    for h in report.hits:
+        print(f"  [{h.kind}] {h.path}  ({h.size} B, sha256~{h.sha256_prefix})")
+    print(f"  scanned: {', '.join(report.scanned_paths)}")
+    print(f"  {report.note}")
+    return 0
+
+
 def cmd_policy(args: argparse.Namespace) -> int:
     """Policy → tombstone (1.6). Propose is default; apply requires --yes + --at (or now)."""
     from datetime import datetime, timezone
@@ -765,6 +804,32 @@ def main(argv: list[str] | None = None) -> int:
     )
     pf.add_argument("-f", "--file", default=DEFAULT_FILE)
     pf.set_defaults(func=cmd_forget)
+
+    pd = sub.add_parser(
+        "debt",
+        help="show tombstone debt (1.7) — count/bytes/oldest; eligible is mark-only, never auto-drop",
+    )
+    pd.add_argument("-f", "--file", default=DEFAULT_FILE)
+    pd.add_argument("--at", default=None, help="RFC3339-Z clock for eligibility (with --purge-eligible-after)")
+    pd.add_argument(
+        "--purge-eligible-after",
+        default=None,
+        metavar="DUR",
+        help="e.g. 30d — count tombstones older than this; does NOT delete",
+    )
+    pd.set_defaults(func=cmd_debt)
+
+    prs = sub.add_parser(
+        "risk-scan",
+        help="path-bounded residual scan (1.7) — find .fafm/.fafmp copies lattice cannot erase",
+    )
+    prs.add_argument(
+        "paths",
+        nargs="*",
+        help="files or dirs to scan (required; no implicit crawl)",
+    )
+    prs.add_argument("--max-files", type=int, default=500, help="cap (default 500)")
+    prs.set_defaults(func=cmd_risk_scan)
 
     pp = sub.add_parser(
         "policy",

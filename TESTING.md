@@ -87,15 +87,15 @@ If that case is not a red-line golden, 2.0 is not shippable.
 
 Primary: `tests/test_wjttc_policies.py`.
 
-### 1.7 Debt + residual (next)
+### 1.7 Debt + residual (shipped in tree as 1.7.0)
 
 | What | When | Gate |
 |------|------|------|
-| `debt()` counts match wire tombstones / bytes | With feature | LAW |
-| Eligibility marks only — **never** auto-drops lattice | With feature | LAW |
-| View cache (if any): recall == lattice after etch/forget/merge | Before default-on | LAW · kill view if red |
-| Residual scan finds fixture `.fafmp` + path copy | With feature | PRODUCT |
-| No “wiped worldwide” / RTBF language in tool output | With feature | PRODUCT |
+| `debt()` counts match wire tombstones / bytes | Before 1.7 pub | LAW ✅ `test_wjttc_debt_residual.py` |
+| Eligibility marks only — **never** auto-drops lattice | Before pub | LAW ✅ |
+| View cache (if any): recall == lattice after etch/forget/merge | Before default-on | LAW · kill view if red · **deferred** (not in 1.7.0) |
+| Residual scan finds fixture `.fafmp` + path copy | Before pub | PRODUCT ✅ |
+| No “wiped worldwide” / RTBF language in tool output | Before pub | PRODUCT ✅ honesty note |
 | Kernel T1–T8 + policies still green | Always | LAW |
 
 **No** dual-impl extension required (no merge re-open).

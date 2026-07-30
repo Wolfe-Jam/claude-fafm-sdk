@@ -36,14 +36,17 @@ from .packet import (
     to_packet_file,
 )
 from .signer import generate_keypair, sign_packet, verify_packet
+from .debt import DebtReport, debt
 from .policy import Policy, apply_policies, propose_policies
+from .residual import ResidualReport, risk_scan
 from .soul import PRIORITY_ORDER, Fact, Soul, canonical_priority
 
-__version__ = "1.6.0"
+__version__ = "1.7.0"
 
 __all__ = [
     "MEMORY_ENDPOINT",
     "PRIORITY_ORDER",
+    "DebtReport",
     "Fact",
     "Identity",
     "IdentityError",
@@ -52,11 +55,13 @@ __all__ = [
     "NamepointUnavailable",
     "PacketError",
     "Policy",
+    "ResidualReport",
     "Soul",
     "__version__",
     "apply_policies",
     "canonical_priority",
     "claim_email",
+    "debt",
     "from_claude_dir",
     "from_packet",
     "from_packet_file",
@@ -67,6 +72,7 @@ __all__ = [
     "packet_is_signed",
     "propose_policies",
     "provision_anonymous",
+    "risk_scan",
     "sign_packet",
     "to_packet",
     "to_packet_file",

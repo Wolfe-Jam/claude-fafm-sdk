@@ -565,6 +565,16 @@ class Soul:
 
         return apply_policies(self, at=at)
 
+    def debt(
+        self,
+        *,
+        at: str | None = None,
+        purge_eligible_after: str | None = None,
+    ) -> Any:
+        """Visible tombstone debt (1.7). Never mutates; eligible is mark-only."""
+        from .debt import debt as _debt
+
+        return _debt(self, at=at, purge_eligible_after=purge_eligible_after)
 
     def set_policy(
         self,
