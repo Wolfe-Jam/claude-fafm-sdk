@@ -88,9 +88,21 @@ claude-fafm-sdk merge [-f soul.fafm] <packet.fafmp>
 - **Same namepoint** required (CvRDT rule). Init both replicas with the same `-n`.
 - **60-second proof:** `bash examples/tier2_receipt.sh` — see `RECEIPT.md`.
 
+## Tombstones on the packet path (1.5)
+
+The seal is still **transport only** — it does not implement merge. But the
+**payload is the whole soul**, including `memory.tombstones` when present:
+
+- `normalize_for_seal` carries the graveyard (`packet.py`); emit is sorted and
+  omitted when empty (byte-identical to a ≤1.4 seal for souls that never forgot).
+- Ingest is still `merge_packet = merge_souls(local, from_packet(…))`, so
+  convergent forget applies on open/merge the same as on hosted `pull`/`sync`.
+- A tombstone is a **lattice marker, not a secure erase** of prior packets or
+  disk copies (see `MERGE.md` §9.5).
+
 ## Out of scope
 
-Encryption · `key_id` / embedded public key (→ later) · tombstones / delete sync
-· full FAFB binary · IANA media type · FAFB `FLAG_SIGNED` interop (`SPK1` ≠
-`FAFB`). Deletes remain out of the merge path (grow/update-only). Optional
-**signing** is now in scope — see [PROVENANCE.md](PROVENANCE.md).
+Encryption · `key_id` / embedded public key (→ later) · full FAFB binary · IANA
+media type · FAFB `FLAG_SIGNED` interop (`SPK1` ≠ `FAFB`) · automatic tombstone
+GC / epoch compact (→ later editions; see vault plan). Optional **signing** is
+in scope — see [PROVENANCE.md](PROVENANCE.md).

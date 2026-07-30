@@ -3,6 +3,27 @@
 All notable changes to `claude-fafm-sdk` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.6.0] — 2026-07-30
+
+**Policy → tombstone.** Policies *emit* forget via existing `forget` / `forget_text`; MERGE §9 unchanged.
+
+### Added
+- **First-class `memory.policies` / `policy_auto`** — not residual; LWW-Element-Map by rule `id` on merge (INTEROP §13).
+- **`propose_policies` / `apply_policies(..., at=)`** — dry-run default surface; apply requires clock pin.
+- **CLI** — `policy list|set|propose|apply` (`apply` needs `--yes` and `--at`).
+- **Selectors** — `max_age`, `priority_lte`, `tag`, `id`, `text` (id-less via `txt_hash`).
+- Goldens: `tests/test_wjttc_policies.py` (selection · T2 re-etch · packet road · seal omit empty).
+
+### Changed
+- **INTEROP.md** — §12 (1.5 tombstones truth) · §13 (1.6 policies).
+- **PACKET.md** — tombstones ride the seal (1.5); removed stale “deletes out of merge path.”
+
+### Notes
+- Policies never suppress at merge — only fact tombstones do.
+- `policy_auto` default **false**; apply is opt-in authority.
+- Empty policies omitted from wire (seal identity for no-policy souls).
+- Not yet published to PyPI in this workspace session unless tagged separately.
+
 ## [1.5.2] — 2026-07-30
 
 **Docs and polish — PyPI front door matches Forgettable Memory (1.5.1 production cut); no lattice change.**

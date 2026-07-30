@@ -44,7 +44,10 @@ _KNOWN_DOC_KEYS = frozenset(
 # Keys under memory that Soul models; other memory keys are residual.
 # ``tombstones`` (1.5) is first-class — NOT residual: residual treatment would join
 # it as an opaque LWW map (wrong lattice) and never suppress a fact (freeze §3.2).
-_KNOWN_MEMORY_KEYS = frozenset({"facts", "sessions", "preferences", "custom", "tombstones"})
+# tombstones (1.5) · policies / policy_auto (1.6) — first-class, never residual LWW
+_KNOWN_MEMORY_KEYS = frozenset(
+    {"facts", "sessions", "preferences", "custom", "tombstones", "policies", "policy_auto"}
+)
 
 
 def _utcnow() -> str:
@@ -197,6 +200,8 @@ class Soul:
         extra: dict[str, Any] | None = None,
         memory_extra: dict[str, Any] | None = None,
         tombstones: dict[tuple[str, str], str] | None = None,
+        policies: list[Any] | None = None,
+        policy_auto: bool = False,
     ) -> None:
         self.namepoint = namepoint
         self.profile = profile
@@ -211,6 +216,17 @@ class Soul:
         # key is ("id", <id>) for an id-fact, ("txt", <txt_hash>) for an id-less one.
         # Grow-only graveyard; merge joins by max(deleted_at) and suppresses on emit.
         self._tombstones: dict[tuple[str, str], str] = dict(tombstones or {})
+        # Policies (1.6) — first-class LWW-Element-Map by rule id; emit forget only.
+        # Imported lazily in accessors to avoid circular import at module load.
+        from .policy import Policy, policies_from_wire
+
+        if policies is None:
+            self._policies: list[Any] = []
+        elif policies and isinstance(policies[0], Policy):
+            self._policies = list(policies)
+        else:
+            self._policies = policies_from_wire(policies)
+        self._policy_auto = bool(policy_auto)
         # Document fidelity (INTEROP §1.4 / §5) — soul-owned copies.
         self._index: list[str] = list(index or [])
         self._sessions: list[Any] = list(sessions or [])
@@ -258,6 +274,29 @@ class Soul:
         and suppresses a fact whose tombstone outranks its clock (freeze §2)."""
         return self._tombstones
 
+    @property
+    def policies(self) -> list[Any]:
+        """Forget policies (1.6) — list of :class:`policy.Policy`. First-class wire."""
+        return self._policies
+
+    @policies.setter
+    def policies(self, value: list[Any]) -> None:
+        from .policy import Policy, policies_from_wire
+
+        if value and isinstance(value[0], Policy):
+            self._policies = list(value)
+        else:
+            self._policies = policies_from_wire(value)
+
+    @property
+    def policy_auto(self) -> bool:
+        """When True, callers MAY auto-apply policies; default False (INTEROP §13)."""
+        return self._policy_auto
+
+    @policy_auto.setter
+    def policy_auto(self, value: bool) -> None:
+        self._policy_auto = bool(value)
+
     @classmethod
     def from_doc(cls, doc: Any, *, namepoint_fallback: str | None = None) -> Soul:
         """Build a Soul from a parsed ``.fafm`` mapping — the shared deserialize
@@ -282,6 +321,8 @@ class Soul:
         namepoint = doc.get("namepoint") or namepoint_fallback
         if not namepoint:
             raise ValueError("soul doc missing 'namepoint'")
+        raw_auto = memory.get("policy_auto", False)
+        policy_auto = bool(raw_auto) if raw_auto is not None else False
         soul = cls(
             namepoint=namepoint,
             profile=doc.get("profile", "voice"),
@@ -295,6 +336,8 @@ class Soul:
             extra=doc_extra,
             memory_extra=memory_extra,
             tombstones=_tombstones_from_wire(memory.get("tombstones")),
+            policies=memory.get("policies"),
+            policy_auto=policy_auto,
         )
         soul.last_etched = doc.get("last_etched", soul.created)
         return soul
@@ -321,6 +364,13 @@ class Soul:
         # to a 1.4 doc (keeps every ≤1.4 seal/wire golden valid; freeze §3.3 + §5 claim).
         if self._tombstones:
             memory["tombstones"] = _tombstones_to_wire(self._tombstones)
+        # Policies (1.6): omit when empty — seal identity for no-policy souls (INTEROP §13.2).
+        if self._policies:
+            from .policy import policies_to_wire
+
+            memory["policies"] = policies_to_wire(self._policies)
+        if self._policy_auto:
+            memory["policy_auto"] = True
         for k, v in self._memory_extra.items():
             if k not in _KNOWN_MEMORY_KEYS:
                 memory[k] = copy.deepcopy(v)
@@ -499,3 +549,46 @@ class Soul:
             self._by_id = {f.id: j for j, f in enumerate(self._facts) if f.id is not None}
         self._tombstone(("txt", txt_hash(text)), deleted_at or _utcnow())
         return removed
+
+    def propose_policies(self, *, at: str) -> list[Any]:
+        """Dry-run: facts matching enabled policies (1.6). No write."""
+        from .policy import propose_policies
+
+        return propose_policies(self, at=at)
+
+    def apply_policies(self, *, at: str) -> list[Any]:
+        """Apply enabled policies with clock pin ``at`` (1.6). Writes tombstones.
+
+        Does **not** check ``policy_auto`` or CLI confirm — caller enforces authority.
+        """
+        from .policy import apply_policies
+
+        return apply_policies(self, at=at)
+
+
+    def set_policy(
+        self,
+        id: str,
+        when: dict[str, Any],
+        *,
+        action: str = "forget",
+        enabled: bool = True,
+        updated_at: str | None = None,
+    ) -> Any:
+        """Upsert a policy rule by id (local; merge joins by LWW on updated_at)."""
+        from .policy import Policy
+
+        if action != "forget":
+            raise ValueError("1.6 policies support action=forget only")
+        p = Policy(
+            id=id,
+            when=dict(when),
+            action="forget",
+            enabled=enabled,
+            updated_at=updated_at or _utcnow(),
+        )
+        rest = [x for x in self._policies if x.id != id]
+        rest.append(p)
+        rest.sort(key=lambda x: x.id)
+        self._policies = rest
+        return p

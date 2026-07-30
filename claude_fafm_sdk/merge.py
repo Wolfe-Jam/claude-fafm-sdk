@@ -314,6 +314,13 @@ def merge_souls(a: Soul, b: Soul) -> Soul:
     facts = list(by_id.values()) + list(idless.values())
     facts.sort(key=_canonical_sort_key)
 
+    from .policy import merge_policies
+
+    # 1.6 policies — LWW-Element-Map by rule id (INTEROP §13.4); does not suppress facts.
+    policies = merge_policies(list(a.policies), list(b.policies))
+    # policy_auto: true wins if either side is true (opt-in is sticky under merge)
+    policy_auto = bool(a.policy_auto or b.policy_auto)
+
     merged = Soul(
         a.namepoint,
         profile=_det_scalar(a.profile, b.profile),
@@ -326,6 +333,8 @@ def merge_souls(a: Soul, b: Soul) -> Soul:
         extra=_merge_opaque(a.extra, b.extra),
         memory_extra=_merge_opaque(a.memory_extra, b.memory_extra),
         tombstones=tombstones,
+        policies=policies,
+        policy_auto=policy_auto,
     )
     merged.last_etched = max(a.last_etched, b.last_etched)
     merged.rebuild_index()
@@ -384,6 +393,12 @@ def logical_state(soul: Soul) -> dict[str, Any]:
         "memory_extra": norm_map(soul.memory_extra),
         "sessions": frozenset(_value_hash(s) for s in soul.sessions),
         "tombstones": frozenset((kind, key, da) for (kind, key), da in soul.tombstones.items()),
+        # 1.6 policies — by id + body (updated_at + enabled + when/action)
+        "policies": frozenset(
+            (p.id, p.updated_at or "", p.enabled, p.action, _canonical_json(p.when))
+            for p in soul.policies
+        ),
+        "policy_auto": bool(soul.policy_auto),
         "index": derived_index,
     }
 

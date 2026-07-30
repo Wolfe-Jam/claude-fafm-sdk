@@ -114,7 +114,8 @@ More in **[examples/](examples/)** — portability + a real cross-vendor roundtr
 (SDK writes `.fafm`, grok-faf-voice reads it back).
 
 **Interop contract (v1.0):** [INTEROP.md](INTEROP.md) — timestamps, priority/rank, id collision, unknown fields, `index`, scratchpad/ledger boundary.  
-**Merge + tombstones:** [MERGE.md](MERGE.md) · **Packets:** [PACKET.md](PACKET.md) · **Provenance:** [PROVENANCE.md](PROVENANCE.md)
+**Merge + tombstones:** [MERGE.md](MERGE.md) · **Packets:** [PACKET.md](PACKET.md) · **Provenance:** [PROVENANCE.md](PROVENANCE.md)  
+**Testing (ship law):** [TESTING.md](TESTING.md) — we break it here so they never know it was broken.
 
 ## Go cross-vendor (a namepoint)
 

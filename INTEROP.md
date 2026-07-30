@@ -1,7 +1,8 @@
-# `.fafm` Interop Contract — claude-fafm-sdk v1.0
+# `.fafm` Interop Contract — claude-fafm-sdk
 
-**Status:** locked for v1.0 implementation (Step 1 of the 0.4.0 → v1.0 plan)  
-**Date:** 2026-07-22  
+**Status:** locked for v1.0 implementation (Step 1 of the 0.4.0 → v1.0 plan);  
+**addenda:** §12 (1.5 tombstones) · §13 (1.6 policies) — 2026-07-30  
+**Base date:** 2026-07-22 · **Addenda date:** 2026-07-30  
 **Applies to:** `Soul` / `Fact` in this package, and any writer/reader that claims format-compat with them (`fafm-engine`, `grok-faf-voice` local file path, future `faf memory` TS surface).
 
 **Format:** `application/vnd.fafm+yaml` (IANA) · document version emitted: **`1.1`**  
@@ -9,7 +10,8 @@
 
 **Bar:** identical logical data model · lossless roundtrip **both** directions · deterministic serialization. Compare reconstructed **Fact lists** (and stored `index` when present) — not raw YAML bytes. (Voice `from_file` → `to_file` remains byte-identical raw I/O; `Soul` is a structured writer.)
 
-This document pins **behavior**. Code that contradicts it is a bug.
+This document pins **behavior**. Code that contradicts it is a bug.  
+Merge law lives in [MERGE.md](MERGE.md) (v1.1+ track; tombstones §9).
 
 ---
 
@@ -47,15 +49,21 @@ Loaders MAY supply defaults for missing optional fields when **reading** non-str
 
 ### 1.4 `memory` object
 
-| Key | Rule |
-|-----|------|
-| `facts` | Array of bare strings and/or fact objects (see §3). Primary durable payload. |
-| `sessions` | Optional array — **preserve if present** on load→save |
-| `preferences` | Optional object — **preserve if present** on load→save |
-| `custom` | Optional object — **preserve if present** on load→save |
-| Other keys under `memory` | **Preserve** (schema `additionalProperties: true`) |
+| Key | Rule | Edition |
+|-----|------|---------|
+| `facts` | Array of bare strings and/or fact objects (see §3). Primary durable payload. | v1.0 |
+| `sessions` | Optional array — **preserve if present** on load→save | v1.0 |
+| `preferences` | Optional object — **preserve if present** on load→save | v1.0 |
+| `custom` | Optional object — **preserve if present** on load→save | v1.0 |
+| `tombstones` | Optional list — convergent forget markers; **first-class** in ≥1.5 readers (see **§12**) | **1.5** |
+| `policies` | Optional list — policy rules that *emit* forget; **first-class** in ≥1.6 readers (see **§13**) | **1.6** |
+| `policy_auto` | Optional bool — default **false**; opt-in auto-apply (see **§13**) | **1.6** |
+| Other keys under `memory` | **Preserve** as residual (schema `additionalProperties: true`) | v1.0 |
 
 **v1.0 requirement:** `Soul.save` / `to_doc` MUST NOT wipe non-empty `sessions` / `preferences` / `custom` to empty defaults when the document had values on load. (Current 0.4.0 fixed-skeleton emit is a known defect relative to this contract.)
+
+**≥1.5:** `tombstones` MUST NOT be treated as residual LWW-opaque by a 1.5+ structured reader (would break delete convergence).  
+**≥1.6:** `policies` MUST NOT be residual LWW-opaque (would break rule-set merge).
 
 ---
 
@@ -142,8 +150,9 @@ Aligned with schema guidance: unknown fields are permitted.
 | **Fact object** | **Preserve** unknown keys through load → in-memory `extra` → save |
 | **Document / `memory` subtrees** | **Preserve** unknown and optional subtrees present on load when saving |
 | **Top-level residual keys** | Keys outside the known set (`version`/`profile`/`namepoint`/`created`/`last_etched`/`retention`/`index`/`memory`) live in `Soul.extra` and are re-emitted after modeled keys; residuals never overwrite modeled keys |
-| **`memory` residual keys** | Keys outside `facts`/`sessions`/`preferences`/`custom` live in `Soul.memory_extra` and are re-emitted under `memory` |
-| **`memory.tombstones` (v1.5 forward-compat)** | A **v1.5** known key (convergent forget — `MERGE.md` §9). A **≤1.4** reader has never heard of it, so it lands in `memory_extra` and is **preserved on load→save but not honored** — the reader keeps the forgotten facts (no delete convergence). This is the documented old-reader limit; preserving the key (not stripping it) is what lets a later 1.5 merge still apply it. |
+| **`memory` residual keys** | Keys outside the **edition’s known set** live in `Soul.memory_extra` and are re-emitted under `memory`. **v1.0 known:** `facts`/`sessions`/`preferences`/`custom`. **+1.5:** `tombstones`. **+1.6:** `policies`/`policy_auto`. |
+| **`memory.tombstones` (≤1.4 readers)** | Unknown to ≤1.4 → residual-preserve on load→save **but not honored** (facts stay live; no delete convergence). Preserving the key (not stripping) lets a later 1.5+ merge apply it. See **§12**. |
+| **`memory.policies` (≤1.5 readers)** | Unknown to ≤1.5 → residual-preserve **but not merged as first-class** (opaque residual path). 1.6+ readers model the list. See **§13**. |
 | **Strip (forbidden in v1.0 structured save)** | Silently dropping `index`, residual unknowns, or blanking non-empty `sessions` / `preferences` / `custom` |
 
 **Voice note:** `FAFMemory.from_file` / `to_file` are raw text I/O (byte-identical). They do not interpret unknowns; they pass the file through. Structured writers (`Soul`) must still honor this section.
@@ -272,4 +281,118 @@ Use this when coding Steps 2–6; not part of the prose contract but tracks comp
 - Schema: `faf/schemas/fafm.schema.json`
 - Voice consumer tests: `grok-faf-voice/tests/test_local_souls.py`
 - Engine twin: `fafm-engine/fafm_engine/soul.py` (`rebuild_index`)
-- This package: `claude_fafm_sdk/soul.py` (0.4.0 baseline)
+- This package: `claude_fafm_sdk/soul.py`
+- Merge / tombstones: [MERGE.md](MERGE.md) §9
+- Packets: [PACKET.md](PACKET.md)
+
+---
+
+## 12. Addendum — Forgettable Memory (1.5) · tombstones
+
+**Status:** shipped in product cut **1.5.1** (docs front door 1.5.2). Normative merge law: **MERGE.md §9**.
+
+### 12.1 Wire
+
+| Item | Rule |
+|------|------|
+| Key | `memory.tombstones` — list of maps |
+| Id-fact entry | `{ id: <string>, deleted_at: <RFC3339-Z> }` |
+| Id-less entry | `{ txt_hash: <hex sha256 of normalize_text(text)>, deleted_at: <RFC3339-Z> }` |
+| Emit | **Only when non-empty** — a soul that never forgot is byte-identical to a ≤1.4 document for seal/wire goldens (T7) |
+| Join | Per key, `max(deleted_at)` — grow-only LWW max-register |
+| Suppress | On emit/merge: drop fact **versions** with `deleted_at >= fact.timestamp` (delete-wins on ties). Full order in MERGE §9.2 |
+
+### 12.2 Reader classes
+
+| Reader | Behavior |
+|--------|----------|
+| **≥1.5 structured** (`Soul` this package) | First-class: load, save, merge, seal, suppress on recall/merge |
+| **≤1.4 structured** | Residual-preserve key; **keep facts** (no convergence) |
+| **Raw I/O** (voice `from_file`/`to_file`) | Pass-through bytes; no interpretation |
+
+### 12.3 Honesty
+
+A tombstone is a **lattice marker, not a secure erase**. Prior packets, backups, and logs may still hold original bytes. Convergence is on **merge**, not a broadcast wipe. No automatic GC in 1.5 (grow-only graveyard).
+
+### 12.4 Transports
+
+Same join on **packet** (`merge_packet`) and **hosted** namepoint reconcile. Convergent forget on only one road is incomplete for the 1.5 product cut.
+
+---
+
+## 13. Addendum — Policy → tombstone (1.6)
+
+**Status:** contract for **1.6** implementation (plan-locked 2026-07-30).  
+**Does not change** MERGE §9. Policies never suppress facts at merge time — only tombstones do.
+
+### 13.1 Intent
+
+Policies **propose** or **apply** forget by calling the same surfaces as human forget (`forget` / `forget_text`). Apply writes **fact tombstones**. The policy list is configuration that travels with the soul.
+
+### 13.2 Wire
+
+| Key | Rule |
+|-----|------|
+| `memory.policies` | Optional list of policy objects. **Omit when empty** (seal / roundtrip identity). |
+| `memory.policy_auto` | Optional bool. Default when absent: **`false`**. Opt-in only for auto-apply. |
+
+**Policy object (minimum):**
+
+| Field | Required | Rule |
+|-------|----------|------|
+| `id` | yes | Stable string — map key for merge |
+| `when` | yes | Selector object (see §13.4) |
+| `action` | yes | **`forget` only** in 1.6 (no hide-only / rank-only) |
+| `enabled` | no | Bool; default `true` |
+| `updated_at` | yes on write | RFC3339-Z — LWW among same `id` |
+
+### 13.3 First-class (not residual)
+
+≥1.6 `Soul` MUST model `policies` / `policy_auto` as known memory keys (same class of bug as treating `tombstones` as residual LWW).  
+≤1.5 readers: residual-preserve if present; do not invent first-class merge.
+
+### 13.4 Merge rule (policies)
+
+```
+policies ≅ LWW-Element-Map by rule id
+  · same id     → greater updated_at wins whole rule
+                  (tie-break: greater content_hash of canonical rule body)
+  · different ids → union
+  · disabled    → enabled: false via LWW (1.6); no separate policy-tombstone required
+```
+
+`policy_auto`: LWW bool (or max/or as implemented — prefer last-writer with timestamp if both sides carry meta; if bare bool, document deterministic join in code). **Default false** on create.
+
+### 13.5 Apply semantics
+
+| Surface | Rule |
+|---------|------|
+| **Propose** | List matching facts; **no write** |
+| **Apply** | For each match, `forget(id)` or `forget_text(text)` with **`deleted_at = at`** |
+| **Clock pin** | Library API: `apply_policies(..., at: RFC3339-Z)` **required**. CLI MAY default `at` to now. Goldens **freeze** `at`. |
+| **Authority** | Propose is the default product surface. Apply requires explicit confirm (`--yes` or equivalent). `policy_auto` default **false**. |
+| **Determinism** | Same `(soul, policy set, at)` → same tombstone set. No LLM in merge or apply path. |
+| **Merge** | Fact convergence uses tombstones only. Two replicas that applied the same policy at different `at` still converge via `max(deleted_at)`. |
+
+### 13.6 Selector (`when`) — 1.6 minimum
+
+Implementations MUST support at least:
+
+| Selector | Match |
+|----------|--------|
+| `max_age` | Fact `timestamp` older than duration relative to `at` (e.g. `"7d"`) |
+| `priority_lte` | Fact priority ≤ named floor (`ephemeral`…`critical`) |
+| `tag` | Fact tags set-intersects given tag(s) |
+| `id` | Exact fact id |
+| `text` | Id-less: `normalize_text` equality (tombstone via `txt_hash`) |
+
+Compounds (AND lists) MAY be added in the same minor if goldens cover them.  
+**Non-goal:** ranking-only “decay” as a substitute for forget.
+
+### 13.7 Cross-impl
+
+`fafm-engine` / `grok-faf-voice`: at minimum **residual-preserve** `policies` / `policy_auto` / `tombstones` on load→save. First-class honor is best-effort per package; format anti-fork forbids stripping unknown memory keys.
+
+### 13.8 Out of 1.6
+
+Automatic GC · epoch compact · watermark · LLM selection · hide-without-tombstone · MCP apply-as-default tool.

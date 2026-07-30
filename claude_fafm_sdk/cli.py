@@ -161,6 +161,77 @@ def cmd_forget(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_policy(args: argparse.Namespace) -> int:
+    """Policy → tombstone (1.6). Propose is default; apply requires --yes + --at (or now)."""
+    from datetime import datetime, timezone
+
+    path = Path(args.file)
+    if not path.exists():
+        print(f"{path} not found — run: claude-fafm-sdk init")
+        return 1
+    soul = Soul.load(path)
+    sub = getattr(args, "policy_cmd", None)
+
+    if sub == "list":
+        if not soul.policies:
+            print(f"no policies in ./{path}  (policy_auto={soul.policy_auto})")
+            return 0
+        print(f"{len(soul.policies)} polic{'ies' if len(soul.policies) != 1 else 'y'}  (policy_auto={soul.policy_auto})")
+        for p in soul.policies:
+            flag = "on" if p.enabled else "off"
+            print(f"  [{flag}] {p.id}  when={p.when}  updated_at={p.updated_at or '—'}")
+        return 0
+
+    if sub == "set":
+        when: dict = {}
+        if args.max_age:
+            when["max_age"] = args.max_age
+        if args.priority_lte:
+            when["priority_lte"] = args.priority_lte
+        if args.tag:
+            when["tag"] = args.tag
+        if args.fact_id:
+            when["id"] = args.fact_id
+        if args.text:
+            when["text"] = args.text
+        if not when:
+            print("policy set needs at least one selector: --max-age / --priority-lte / --tag / --fact-id / --text")
+            return 1
+        soul.set_policy(args.id, when, enabled=not args.disabled)
+        soul.save(path)
+        print(f"policy {args.id!r} set → ./{path}")
+        return 0
+
+    if sub in ("propose", "apply"):
+        at = args.at
+        if not at:
+            at = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        hits = soul.propose_policies(at=at)
+        if not hits:
+            print(f"no matches at {at}  ({len(soul.policies)} policies, {len(soul.facts)} facts)")
+            return 0
+        for h in hits:
+            label = h.fact.id or h.fact.text[:60]
+            print(f"  would forget [{h.policy_id}] {h.kind}:{label!r}")
+        if sub == "propose":
+            print(f"{len(hits)} match(es) — dry-run only. Apply: policy apply --yes --at {at}")
+            return 0
+        # apply
+        if not args.yes:
+            print("apply refused — pass --yes (explicit authority; INTEROP §13.5)")
+            return 1
+        if not args.at:
+            print("apply requires --at <RFC3339-Z> for a pinned clock (CLI will not invent apply clock without --at)")
+            return 1
+        applied = soul.apply_policies(at=args.at)
+        soul.save(path)
+        print(f"applied {len(applied)} forget(s) at {args.at} → ./{path}  ({len(soul.facts)} facts left)")
+        return 0
+
+    print("policy needs a subcommand: list | set | propose | apply")
+    return 1
+
+
 def cmd_seal(args: argparse.Namespace) -> int:
     """Seal a local ``.fafm`` soul into a ``.fafmp`` packet (file transport).
 
@@ -694,6 +765,34 @@ def main(argv: list[str] | None = None) -> int:
     )
     pf.add_argument("-f", "--file", default=DEFAULT_FILE)
     pf.set_defaults(func=cmd_forget)
+
+    pp = sub.add_parser(
+        "policy",
+        help="policy → tombstone (1.6): list / set / propose (dry-run) / apply --yes --at …",
+    )
+    pps = pp.add_subparsers(dest="policy_cmd", required=True)
+    ppl = pps.add_parser("list", help="list policies on the soul")
+    ppl.add_argument("-f", "--file", default=DEFAULT_FILE)
+    ppl.set_defaults(func=cmd_policy)
+    ppset = pps.add_parser("set", help="upsert a policy rule by id")
+    ppset.add_argument("id", help="policy rule id")
+    ppset.add_argument("--max-age", default=None, help='e.g. 7d, 12h')
+    ppset.add_argument("--priority-lte", default=None, help="ephemeral|standard|high|critical")
+    ppset.add_argument("--tag", default=None, help="match facts with this tag")
+    ppset.add_argument("--fact-id", default=None, help="exact fact id")
+    ppset.add_argument("--text", default=None, help="id-less fact text (normalized match)")
+    ppset.add_argument("--disabled", action="store_true", help="store enabled=false")
+    ppset.add_argument("-f", "--file", default=DEFAULT_FILE)
+    ppset.set_defaults(func=cmd_policy)
+    pprop = pps.add_parser("propose", help="dry-run: list facts policies would forget")
+    pprop.add_argument("--at", default=None, help="RFC3339-Z clock (default: now)")
+    pprop.add_argument("-f", "--file", default=DEFAULT_FILE)
+    pprop.set_defaults(func=cmd_policy)
+    ppa = pps.add_parser("apply", help="write tombstones for matches (requires --yes and --at)")
+    ppa.add_argument("--at", required=True, help="RFC3339-Z clock pin for deleted_at")
+    ppa.add_argument("--yes", action="store_true", help="required confirm — apply is opt-in")
+    ppa.add_argument("-f", "--file", default=DEFAULT_FILE)
+    ppa.set_defaults(func=cmd_policy)
 
     ps = sub.add_parser(
         "seal",

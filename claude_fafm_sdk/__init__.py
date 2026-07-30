@@ -36,9 +36,10 @@ from .packet import (
     to_packet_file,
 )
 from .signer import generate_keypair, sign_packet, verify_packet
+from .policy import Policy, apply_policies, propose_policies
 from .soul import PRIORITY_ORDER, Fact, Soul, canonical_priority
 
-__version__ = "1.5.2"
+__version__ = "1.6.0"
 
 __all__ = [
     "MEMORY_ENDPOINT",
@@ -50,8 +51,10 @@ __all__ = [
     "NamepointAuthRequired",
     "NamepointUnavailable",
     "PacketError",
+    "Policy",
     "Soul",
     "__version__",
+    "apply_policies",
     "canonical_priority",
     "claim_email",
     "from_claude_dir",
@@ -62,6 +65,7 @@ __all__ = [
     "merge_packet",
     "merge_souls",
     "packet_is_signed",
+    "propose_policies",
     "provision_anonymous",
     "sign_packet",
     "to_packet",
