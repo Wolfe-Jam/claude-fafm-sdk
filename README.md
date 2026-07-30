@@ -8,28 +8,34 @@
 versions with your project and moves between models — instead of being locked to
 one vendor.
 
-### What's New in 1.4.0 — Verifiable Provenance
+**Current release: [1.5.1](https://pypi.org/project/claude-fafm-sdk/1.5.1/)** —
+[Forgettable Memory](https://faf.one/blog/forgettable-memory) (production cut).
+There is no production 1.5.0; first 1.5.x on PyPI is **1.5.1**.
 
-1.3 proved memory *travels intact*; 1.4 lets it prove *which key sealed it*. An **optional
-Ed25519 signature** binds a key to the sealed payload — separate from CRC integrity.
-Opt-in via the `[sign]` extra; the base SDK and the Provable Receipt stay zero-crypto.
+### What's New in 1.5.1 — Forgettable Memory
+
+Until 1.5, every edition only *grew* the soul: delete was absence, and merge
+resurrected whatever a peer still held. **1.5 makes a delete state** —
+`forget` writes a **tombstone** that travels with the soul, joins as an LWW
+max-register, and **suppresses** the fact on emit. **1.5.1** is the production
+cut: forget converges on **both** the packet path *and* hosted namepoint
+`pull` / `sync` (same CvRDT). Could have been 2.0; we kept the arc honest as 1.5.
 
 ```sh
-pip install 'claude-fafm-sdk[sign]'
-claude-fafm-sdk keygen                                 # 🔑 Ed25519 keypair (sign.pem 0600)
-claude-fafm-sdk seal -f soul.fafm -o soul.fafmp --sign --key sign.pem
-claude-fafm-sdk verify soul.fafmp -k sign.pub.pem      # exit 0 good / 1 bad
+uvx claude-fafm-sdk --version          # → 1.5.1
+uvx claude-fafm-sdk forget --help
+claude-fafm-sdk forget secret-id       # id — or: forget --text "…"
+claude-fafm-sdk seal -f soul.fafm -o out.fafmp   # tombstones ride the packet
+# hosted: push → pull/sync go through merge_souls — forgotten stays forgotten
 ```
 
-- **`keygen` / `seal --sign` / `verify`** — Ed25519 provenance over the CRC payload  
-- **`sign_packet` / `verify_packet`** — signed packets never CRC-open; `merge` verifies first  
-- **Provable Receipt (1.3)** — `uvx claude-fafm-sdk receipt`, zero-crypto  
-- **Sendable (1.2)** — `to_packet` / `merge_packet` + CLI `seal` / `merge`  
-- **Mergeable (1.1)** — `merge_souls`, the dual-implementation-verified CvRDT  
-- **Provenance, not a PKI.** A signature proves *this key signed these bytes* — not
-  a person, not encryption, and it can't force content to travel signed. See
-  [PROVENANCE.md](PROVENANCE.md).  
-- See [CHANGELOG](CHANGELOG.md) for the full list
+- **`Soul.forget` / `forget_text` + CLI `forget`** — live remove **and** tombstone  
+- **Both transports** — packet (`seal` / `merge`) **and** hosted (`pull` / `sync`)  
+- **Tombstone ≠ secure erase** — lattice convergence, not forensic wipe  
+- **Verifiable Provenance (1.4)** — optional Ed25519 (`[sign]` extra); base path zero-crypto  
+- **Provable Receipt (1.3)** · **Sendable (1.2)** · **Mergeable (1.1)**  
+- Arc: **Mergeable → Sendable → Provable → Verifiable → Forgettable**  
+- Full detail: [CHANGELOG](CHANGELOG.md) · blog: [faf.one/blog/forgettable-memory](https://faf.one/blog/forgettable-memory)
 
 Offline-first: the local `Soul` works with no account. Connect a free
 **namepoint** for the full intel (semantic recall, smart-merge) at personal scale.
