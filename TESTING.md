@@ -112,25 +112,26 @@ Primary: `tests/test_wjttc_policies.py`.
 
 ### 2.0.0 Compactable — epoch (second lattice re-open)
 
-**Spec first:** freeze `MERGE.md` §11 before implementation.
+**Spec:** `MERGE.md` **§11 FROZEN** (2026-07-30) · INTEROP **§14** wire.  
+**Laws:** Z1–Z8 in MERGE §11.8 — implement as `tests/test_wjttc_epoch.py` (name locked at impl).
 
 | What | When | Gate |
 |------|------|------|
-| Epoch assign · `compact --epoch` dry-run | Early impl | |
-| Archive prior soul loadable (ARCHIVE-DEFAULT) | With compact | LAW |
-| CompactionReceipt present | With compact | LAW |
-| **Zombie suite** (hand goldens) | Before 2.0 claim | **SHIP BLOCKER** |
-| · lagging peer still holds fact | | no resurrection |
-| · packet sealed **pre-forget**, opened **post-epoch** | | refuse or migrate — never silent join |
-| · concurrent re-etch across compact | | T2 holds |
-| · dual-transport diamond | | same join |
-| · cross-epoch refuse documented + tested | | barrier |
-| **Dual-impl / N-version** for epoch + refuse | Before unqualified CvRDT | **SHIP BLOCKER** |
+| §11 prose frozen before code | **Done** | SPEC |
+| `Soul.epoch` · `EpochMismatch` (E1) | Impl | LAW |
+| `compact_epoch` + CompactionReceipt (E3–E4) | Impl | LAW |
+| Archive-first CLI/API (Z7) | Impl | PRODUCT |
+| **Zombie suite Z1–Z8** hand goldens | Before 2.0 claim | **SHIP BLOCKER** |
+| · Z2 cross-epoch refuse | | no fact bleed |
+| · Z3 packet pre-forget / post-epoch refuse | | never silent join |
+| · Z4 compact projection + empty tombstones | | debt paid in lineage |
+| · Z6 dual-transport same E1 | | |
+| **Dual-impl / N-version** for epoch + E1 + compact | Before unqualified CvRDT | **SHIP BLOCKER** |
 | T1–T8 green on **epoch-0** souls | Always | LAW |
-| ≤1.5 residual-preserve unknown epoch keys | Interop | LAW |
+| ≤1.7 residual-preserve `epoch` / receipts | Interop §14 | LAW |
 | Claims: compact ≠ secure erase | Doc Gate | PRODUCT |
 
-**Do not ship 2.0** if any zombie golden is red or refuse/migrate is undefined.
+**Do not ship 2.0** if Z2, Z3, or dual-impl is red.
 
 ### 2.0.1+ Watermark
 

@@ -1,7 +1,7 @@
 # `.fafm` Interop Contract — claude-fafm-sdk
 
 **Status:** locked for v1.0 implementation (Step 1 of the 0.4.0 → v1.0 plan);  
-**addenda:** §12 (1.5 tombstones) · §13 (1.6 policies) — 2026-07-30  
+**addenda:** §12 (1.5 tombstones) · §13 (1.6 policies) · §14 (2.0 epoch — wire only; merge law in MERGE §11)  
 **Base date:** 2026-07-22 · **Addenda date:** 2026-07-30  
 **Applies to:** `Soul` / `Fact` in this package, and any writer/reader that claims format-compat with them (`fafm-engine`, `grok-faf-voice` local file path, future `faf memory` TS surface).
 
@@ -396,3 +396,42 @@ Compounds (AND lists) MAY be added in the same minor if goldens cover them.
 ### 13.8 Out of 1.6
 
 Automatic GC · epoch compact · watermark · LLM selection · hide-without-tombstone · MCP apply-as-default tool.
+
+---
+
+## 14. Addendum — Compactable epoch (2.0) · wire
+
+**Status:** wire + residual contract for **2.0.0**. Normative merge/compact law: **MERGE.md §11** (frozen).
+
+### 14.1 Top-level `epoch`
+
+| Item | Rule |
+|------|------|
+| Key | `epoch` (integer ≥ 0) |
+| Absent | Treat as **0** on load (pre-2.0 souls) |
+| ≥2.0 writers | Always emit `epoch` (including `0`) |
+| ≤1.7 structured | Residual-preserve if unknown; **must not strip** on load→save |
+| Merge | Same-epoch only — see MERGE §11.2; cross-epoch **refuse** |
+
+### 14.2 `memory.compaction_receipts`
+
+| Item | Rule |
+|------|------|
+| Key | Optional list under `memory` |
+| Emit | Only when non-empty |
+| ≥2.0 | First-class known key |
+| ≤1.7 | Residual-preserve |
+| Schema | See MERGE §11.5 |
+
+### 14.3 Known memory keys (edition map)
+
+| Edition | Known under `memory` |
+|---------|----------------------|
+| v1.0 | `facts` · `sessions` · `preferences` · `custom` |
+| +1.5 | `tombstones` |
+| +1.6 | `policies` · `policy_auto` |
+| +2.0 | `compaction_receipts` |
+
+### 14.4 Out of 2.0.0 wire
+
+Watermark frontiers · peer VV · auto-migrate on merge · secure erase claims.

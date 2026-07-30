@@ -100,9 +100,17 @@ The seal is still **transport only** — it does not implement merge. But the
 - A tombstone is a **lattice marker, not a secure erase** of prior packets or
   disk copies (see `MERGE.md` §9.5).
 
+## Epoch on the packet path (2.0)
+
+Payload carries top-level **`epoch`** (default 0). After Compactable ships:
+
+- Seal of epoch `e` merges only into local epoch `e` (MERGE §11.2 E1).
+- Cross-epoch → **refuse** (never silent join) — zombie suite Z3.
+- Spec: [MERGE.md §11](MERGE.md) · [INTEROP.md §14](INTEROP.md).
+
 ## Out of scope
 
 Encryption · `key_id` / embedded public key (→ later) · full FAFB binary · IANA
-media type · FAFB `FLAG_SIGNED` interop (`SPK1` ≠ `FAFB`) · automatic tombstone
-GC / epoch compact (→ later editions; see vault plan). Optional **signing** is
-in scope — see [PROVENANCE.md](PROVENANCE.md).
+media type · FAFB `FLAG_SIGNED` interop (`SPK1` ≠ `FAFB`) · watermark GC without
+membership (MERGE §11.9). Optional **signing** is in scope — see
+[PROVENANCE.md](PROVENANCE.md).
