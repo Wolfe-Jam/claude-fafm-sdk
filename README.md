@@ -2,17 +2,26 @@
 
 [![PyPI](https://img.shields.io/pypi/v/claude-fafm-sdk)](https://pypi.org/project/claude-fafm-sdk/) · [![IANA: vnd.fafm+yaml](https://img.shields.io/badge/IANA-vnd.fafm%2Byaml-00D4D4)](https://www.iana.org/assignments/media-types/application/vnd.fafm+yaml) · [![DOI: Memory paper](https://img.shields.io/badge/DOI-Memory%20paper-FF6B35)](https://doi.org/10.5281/zenodo.20348942) · [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-**Home:** [faf.one/memory](https://faf.one/memory)
+**Home:** [faf.one/memory](https://faf.one/memory) · **Blog:** [Forgettable Memory](https://faf.one/blog/forgettable-memory)
 
 **Portable, cross-vendor AI memory in `.fafm`.** Give an AI agent memory that
 versions with your project and moves between models — instead of being locked to
 one vendor.
 
-**Current release: [1.5.1](https://pypi.org/project/claude-fafm-sdk/1.5.1/)** —
-[Forgettable Memory](https://faf.one/blog/forgettable-memory) (production cut).
-There is no production 1.5.0; first 1.5.x on PyPI is **1.5.1**.
+| | |
+|--|--|
+| **Edition** | **Forgettable Memory** |
+| **Release** | **[1.5.2](https://pypi.org/project/claude-fafm-sdk/1.5.2/)** (docs/polish) |
+| **Product cut** | **1.5.1** — first 1.5.x on PyPI (no production 1.5.0) |
 
-### What's New in 1.5.1 — Forgettable Memory
+### What's New in 1.5.2 — Docs and polish
+
+**Docs and polish — PyPI front door matches Forgettable Memory (1.5.1 production cut); no lattice change.**
+
+Same product as 1.5.1. This patch bakes the correct front door into the package long-description
+(PyPI freezes README at publish). No merge, wire, or API change.
+
+### Product: Forgettable Memory (1.5.x)
 
 Until 1.5, every edition only *grew* the soul: delete was absence, and merge
 resurrected whatever a peer still held. **1.5 makes a delete state** —
@@ -21,21 +30,25 @@ max-register, and **suppresses** the fact on emit. **1.5.1** is the production
 cut: forget converges on **both** the packet path *and* hosted namepoint
 `pull` / `sync` (same CvRDT). Could have been 2.0; we kept the arc honest as 1.5.
 
+#### Key features (1.5.x)
+
+- **`Soul.forget` / `forget_text` + CLI `forget`** — remove the live fact **and** write a tombstone  
+- **Both transports** — packet (`seal` / `merge`) **and** hosted (`pull` / `sync`)  
+- **Tombstone ≠ secure erase** — lattice convergence, not forensic wipe  
+- **Verifiable Provenance (1.4)** — optional Ed25519 (`[sign]` extra); base path zero-crypto  
+- **Provable Receipt (1.3)** · **Sendable (1.2)** · **Mergeable (1.1)**  
+
+**Arc:** Mergeable → Sendable → Provable → Verifiable → **Forgettable**
+
+Full detail: [CHANGELOG](CHANGELOG.md) · [faf.one/blog/forgettable-memory](https://faf.one/blog/forgettable-memory)
+
 ```sh
-uvx claude-fafm-sdk --version          # → 1.5.1
+uvx claude-fafm-sdk --version          # → 1.5.2
 uvx claude-fafm-sdk forget --help
 claude-fafm-sdk forget secret-id       # id — or: forget --text "…"
 claude-fafm-sdk seal -f soul.fafm -o out.fafmp   # tombstones ride the packet
 # hosted: push → pull/sync go through merge_souls — forgotten stays forgotten
 ```
-
-- **`Soul.forget` / `forget_text` + CLI `forget`** — live remove **and** tombstone  
-- **Both transports** — packet (`seal` / `merge`) **and** hosted (`pull` / `sync`)  
-- **Tombstone ≠ secure erase** — lattice convergence, not forensic wipe  
-- **Verifiable Provenance (1.4)** — optional Ed25519 (`[sign]` extra); base path zero-crypto  
-- **Provable Receipt (1.3)** · **Sendable (1.2)** · **Mergeable (1.1)**  
-- Arc: **Mergeable → Sendable → Provable → Verifiable → Forgettable**  
-- Full detail: [CHANGELOG](CHANGELOG.md) · blog: [faf.one/blog/forgettable-memory](https://faf.one/blog/forgettable-memory)
 
 Offline-first: the local `Soul` works with no account. Connect a free
 **namepoint** for the full intel (semantic recall, smart-merge) at personal scale.
@@ -47,8 +60,12 @@ Offline-first: the local `Soul` works with no account. Connect a free
 ## Install
 
 ```sh
-uv add claude-fafm-sdk          # in a project (recommended)
-pip3 install claude-fafm-sdk    # also works
+uv add claude-fafm-sdk                 # in a project (recommended)
+pip3 install claude-fafm-sdk==1.5.2    # pin the front door you expect
+# optional provenance:
+pip3 install 'claude-fafm-sdk[sign]==1.5.2'
+# optional hosted namepoint client:
+uv add "claude-fafm-sdk[namepoint]"
 ```
 
 ## 30 seconds
@@ -66,7 +83,7 @@ uvx claude-fafm-sdk init                 # 🧬 create a portable soul
 claude-fafm-sdk etch "ships uv-first"    # write a memory
 claude-fafm-sdk recall uv                # recall it  (filters: --tag --type --priority)
 claude-fafm-sdk ls                       # list every fact, ranked
-claude-fafm-sdk forget install           # delete a fact by id
+claude-fafm-sdk forget install           # convergent delete by id (tombstone)
 ```
 
 Five commands — `init`, `etch`, `recall`, `ls`, `forget`. Run `claude-fafm-sdk
@@ -74,7 +91,7 @@ Five commands — `init`, `etch`, `recall`, `ls`, `forget`. Run `claude-fafm-sdk
 
 Hand `soul.fafm` to `grok-faf-voice` and it reads it — same format, no fork.
 
-## Quickstart
+## How it works
 
 ```python
 from claude_fafm_sdk import Soul
@@ -82,6 +99,7 @@ from claude_fafm_sdk import Soul
 soul = Soul("@me")
 soul.etch("ships uv-first", id="install", type="reference", priority="high")
 soul.etch("portable across vendors", id="why", type="project")
+soul.forget("install")          # tombstone — merge will not resurrect
 soul.save("me.fafm")            # → application/vnd.fafm+yaml
 
 # later, anywhere:
@@ -89,12 +107,14 @@ soul = Soul.load("me.fafm")
 soul.recall("uv")               # deterministic recall, ranked by priority + recency
 ```
 
-That's the whole offline loop — no account, no server.
+That's the whole offline loop — no account, no server. Deletes travel as
+**state** (tombstones) so peers converge without lying about the join.
 
 More in **[examples/](examples/)** — portability + a real cross-vendor roundtrip
 (SDK writes `.fafm`, grok-faf-voice reads it back).
 
-**Interop contract (v1.0):** [INTEROP.md](INTEROP.md) — timestamps, priority/rank, id collision, unknown fields, `index`, scratchpad/ledger boundary.
+**Interop contract (v1.0):** [INTEROP.md](INTEROP.md) — timestamps, priority/rank, id collision, unknown fields, `index`, scratchpad/ledger boundary.  
+**Merge + tombstones:** [MERGE.md](MERGE.md) · **Packets:** [PACKET.md](PACKET.md) · **Provenance:** [PROVENANCE.md](PROVENANCE.md)
 
 ## Go cross-vendor (a namepoint)
 
@@ -106,7 +126,7 @@ to copy.
 ```sh
 uv add "claude-fafm-sdk[namepoint]"      # hosted ops use the family MCP client
 claude-fafm-sdk namepoint push           # → live at mcpaas.live/anon… (auto-provisioned)
-claude-fafm-sdk namepoint pull           # merge your hosted soul back (public read)
+claude-fafm-sdk namepoint pull           # merge via CvRDT (forget converges)
 claude-fafm-sdk namepoint sync           # reconcile both ways
 ```
 
@@ -119,10 +139,10 @@ claude-fafm-sdk namepoint claim --email you@example.com   # a named, recoverable
 claude-fafm-sdk namepoint status                           # what you've got
 ```
 
-The whole `.fafm` document is stored at the namepoint, so ids, types, and
-priorities survive the round-trip — structured memory, not prose. Reads are public
-(no key); writes use the key auto-provisioning hands you. The local `Soul` still
-works fully offline, no account.
+The whole `.fafm` document is stored at the namepoint, so ids, types, priorities,
+**and tombstones** survive the round-trip — structured memory, not prose. Reads are
+public (no key); writes use the key auto-provisioning hands you. The local `Soul`
+still works fully offline, no account.
 
 Programmatic access mirrors the CLI:
 
@@ -140,6 +160,7 @@ body = await Namepoint(ident.namepoint).pull()      # reads are public — no ke
 AI memory is vendor-locked. `.fafm` is the open, portable format — and this SDK
 is the open, offline-first way to use it. Souls written here interop with the
 `fafm-engine` and `grok-faf-voice` implementations: one format, never a fork.
+Memory that grows, moves, proves, signs — and can forget without resurrecting on join.
 
 ## Citation
 

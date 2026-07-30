@@ -3,6 +3,22 @@
 All notable changes to `claude-fafm-sdk` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.5.2] — 2026-07-30
+
+**Docs and polish — PyPI front door matches Forgettable Memory (1.5.1 production cut); no lattice change.**
+
+### Changed
+- **README** — “What's New” hero is Forgettable Memory (1.5.x), not stale 1.4.0 Provenance.
+  Current release stamp, arc, install, and key features aligned with the 1.5.1 production cut.
+- **Release identity** — version · edition (Forgettable Memory) · one-line lead match across
+  README + CHANGELOG for this patch.
+- **CITATION.cff** — software version stamp updated.
+
+### Notes
+- **No code / merge / wire change.** Same Forgettable lattice as 1.5.1 (tombstones · both transports).
+- There is still **no production 1.5.0**; first 1.5.x on PyPI remains **1.5.1**. This cut is docs-only
+  so the baked PyPI long-description matches the product.
+
 ## [1.5.1] — 2026-07-27
 
 **Forgettable everywhere — hosted forget converges.** 1.5.0 made a delete converge on the
