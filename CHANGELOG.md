@@ -7,6 +7,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow 
 
 **Debt + residual-risk.** See the graveyard cost; surface outside-soul copies. Never auto-drop tombstones.
 
+**Public share:** git tags `v1.6.0` + `v1.7.0` document steps; **PyPI publish is 1.7.0 only**
+(folds 1.6 policy + 1.7 debt — single install line). No separate 1.6.0 wheel required.
+Major **2.0** = Compactable Release + blog when that cut ships.
+
 ### Added
 - **`debt()` / CLI `debt`** — tombstone count, approx bytes, oldest/newest; optional
   `--purge-eligible-after` is **mark-only** (does not delete).

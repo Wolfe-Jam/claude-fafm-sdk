@@ -160,8 +160,8 @@ Only if production concurrent re-etch races exist. No theater suite.
 | Moment | Command / suite |
 |--------|------------------|
 | **Every commit / PR** | Fast core: tombstones + merge_crdt + packet + policies (+ soul) |
-| **Pre-pub any 1.x** | Full `tests/` + version identity + Doc Gate |
-| **Pre-pub 2.0** | Full + **zombie suite** + **n-version** + epoch seal goldens |
+| **Pre-pub 1.7.0 (folded PyPI — includes 1.6)** | Full `tests/` + version identity **1.7.0** + Doc Gate; no separate 1.6.0 wheel |
+| **Pre-pub 2.0 (big Release + blog)** | Full + **zombie suite** + **n-version** + epoch seal goldens |
 | **After MERGE / INTEROP edit** | merge + tombstones + policies (if §13) + interop corpus |
 | **Never skip** | T1–T8 when touching forget, merge, packet, compact, policy apply |
 
