@@ -206,9 +206,11 @@ def propose_policies(soul: Soul, *, at: str, policies: list[Policy] | None = Non
             if not _matches_when(f, p.when, at=at):
                 continue
             if f.id is not None:
-                kind, key = "id", f.id
+                kind: Literal["id", "txt"] = "id"
+                key = f.id
             else:
-                kind, key = "txt", txt_hash(f.text)
+                kind = "txt"
+                key = txt_hash(f.text)
             sk = (kind, key)
             if sk in seen:
                 continue

@@ -27,9 +27,9 @@ FAFM = FIXTURES / "fafm"
 # ---------------------------------------------------------------------------
 
 
-def test_finish_version_is_1_5():
-    """v1.5 release gate: package is 1.5.x and single-sourced."""
-    assert claude_fafm_sdk.__version__.startswith("1.5")
+def test_finish_version_is_1_7():
+    """v1.7 release gate: package is 1.7.x (folds 1.6) and single-sourced."""
+    assert claude_fafm_sdk.__version__.startswith("1.7")
     assert version("claude-fafm-sdk") == claude_fafm_sdk.__version__
 
 
@@ -64,7 +64,7 @@ def test_finish_public_exports():
     from claude_fafm_sdk.cli import cmd_keygen, cmd_open, cmd_receipt, cmd_verify
     from claude_fafm_sdk.receipt import run_receipt
 
-    assert __version__.startswith("1.5")
+    assert __version__.startswith("1.7")
     assert callable(from_claude_dir)
     assert callable(merge_souls)
     assert callable(to_packet) and callable(from_packet) and callable(merge_packet)

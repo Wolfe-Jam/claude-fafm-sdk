@@ -11,43 +11,39 @@ one vendor.
 | | |
 |--|--|
 | **Edition** | **Forgettable Memory** |
-| **Release** | **[1.5.2](https://pypi.org/project/claude-fafm-sdk/1.5.2/)** (docs/polish) |
-| **Product cut** | **1.5.1** — first 1.5.x on PyPI (no production 1.5.0) |
+| **Release** | **[1.7.0](https://pypi.org/project/claude-fafm-sdk/1.7.0/)** (policy + debt; folds 1.6) |
+| **Lattice** | **1.5** tombstones · both roads — no merge re-open in 1.6/1.7 |
 
-### What's New in 1.5.2 — Docs and polish
+### What's New in 1.7.0 — Debt + residual-risk
 
-**Docs and polish — PyPI front door matches Forgettable Memory (1.5.1 production cut); no lattice change.**
+**Debt + residual-risk.** See the graveyard cost; surface outside-soul copies. Never auto-drop tombstones.
 
-Same product as 1.5.1. This patch bakes the correct front door into the package long-description
-(PyPI freezes README at publish). No merge, wire, or API change.
+Single install line for the 1.6+1.7 steps (git tags document both; no separate 1.6.0 wheel):
 
-### Product: Forgettable Memory (1.5.x)
+- **1.6 Policy → tombstone** — first-class `memory.policies`; `propose` / `apply` with clock pin; CLI `policy`  
+- **1.7 Debt + residual** — `debt` (mark-only eligibility); path-bounded `risk-scan` (not RTBF, not wipe)  
+- **Still Forgettable** — MERGE §9 unchanged; compact/GC is **2.0**  
 
-Until 1.5, every edition only *grew* the soul: delete was absence, and merge
-resurrected whatever a peer still held. **1.5 makes a delete state** —
-`forget` writes a **tombstone** that travels with the soul, joins as an LWW
-max-register, and **suppresses** the fact on emit. **1.5.1** is the production
-cut: forget converges on **both** the packet path *and* hosted namepoint
-`pull` / `sync` (same CvRDT). Could have been 2.0; we kept the arc honest as 1.5.
+#### Key features (1.5–1.7)
 
-#### Key features (1.5.x)
-
-- **`Soul.forget` / `forget_text` + CLI `forget`** — remove the live fact **and** write a tombstone  
-- **Both transports** — packet (`seal` / `merge`) **and** hosted (`pull` / `sync`)  
+- **`Soul.forget` / `forget_text` + CLI `forget`** — delete is state; both roads  
+- **`policy` propose/apply** — policies *emit* tombstones; apply needs `--yes` + `--at`  
+- **`debt` / `risk-scan`** — visible graveyard; residual copies the lattice cannot erase  
 - **Tombstone ≠ secure erase** — lattice convergence, not forensic wipe  
-- **Verifiable Provenance (1.4)** — optional Ed25519 (`[sign]` extra); base path zero-crypto  
-- **Provable Receipt (1.3)** · **Sendable (1.2)** · **Mergeable (1.1)**  
+- **Verifiable Provenance (1.4)** — optional Ed25519 (`[sign]` extra)  
+- **Provable · Sendable · Mergeable** (1.3 → 1.1)  
 
-**Arc:** Mergeable → Sendable → Provable → Verifiable → **Forgettable**
+**Arc:** Mergeable → Sendable → Provable → Verifiable → **Forgettable** → (policy · debt) → *Compactable 2.0 later*
 
-Full detail: [CHANGELOG](CHANGELOG.md) · [faf.one/blog/forgettable-memory](https://faf.one/blog/forgettable-memory)
+Full detail: [CHANGELOG](CHANGELOG.md) · [TESTING](TESTING.md) · [faf.one/blog/forgettable-memory](https://faf.one/blog/forgettable-memory)
 
 ```sh
-uvx claude-fafm-sdk --version          # → 1.5.2
+uvx claude-fafm-sdk --version          # → 1.7.0
 uvx claude-fafm-sdk forget --help
-claude-fafm-sdk forget secret-id       # id — or: forget --text "…"
+claude-fafm-sdk debt -f soul.fafm
+claude-fafm-sdk policy propose --at 2026-07-30T12:00:00Z
+claude-fafm-sdk risk-scan . ./backup
 claude-fafm-sdk seal -f soul.fafm -o out.fafmp   # tombstones ride the packet
-# hosted: push → pull/sync go through merge_souls — forgotten stays forgotten
 ```
 
 Offline-first: the local `Soul` works with no account. Connect a free
@@ -61,9 +57,9 @@ Offline-first: the local `Soul` works with no account. Connect a free
 
 ```sh
 uv add claude-fafm-sdk                 # in a project (recommended)
-pip3 install claude-fafm-sdk==1.5.2    # pin the front door you expect
+pip3 install claude-fafm-sdk==1.7.0    # pin the front door you expect
 # optional provenance:
-pip3 install 'claude-fafm-sdk[sign]==1.5.2'
+pip3 install 'claude-fafm-sdk[sign]==1.7.0'
 # optional hosted namepoint client:
 uv add "claude-fafm-sdk[namepoint]"
 ```
@@ -84,10 +80,11 @@ claude-fafm-sdk etch "ships uv-first"    # write a memory
 claude-fafm-sdk recall uv                # recall it  (filters: --tag --type --priority)
 claude-fafm-sdk ls                       # list every fact, ranked
 claude-fafm-sdk forget install           # convergent delete by id (tombstone)
+claude-fafm-sdk debt                     # visible tombstone debt (1.7)
 ```
 
-Five commands — `init`, `etch`, `recall`, `ls`, `forget`. Run `claude-fafm-sdk
---help` (or `<cmd> --help`) for the full surface.
+Core loop — `init`, `etch`, `recall`, `ls`, `forget` — plus `policy`, `debt`,
+`risk-scan`. Run `claude-fafm-sdk --help` (or `<cmd> --help`) for the full surface.
 
 Hand `soul.fafm` to `grok-faf-voice` and it reads it — same format, no fork.
 
