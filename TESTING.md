@@ -179,9 +179,9 @@ Not the repo. Not editable. Not “version string only.” Soul · forget · pol
 
 ```sh
 # Same script; only --from changes (pre-pub vs post-pub)
-bash scripts/post-pub-acid-test.sh 1.7.0 --from wheel      # pre-pub: build+install local wheel
-bash scripts/post-pub-acid-test.sh 1.7.0 --from testpypi   # pre-pub staging
-bash scripts/post-pub-acid-test.sh 1.7.0 --from pypi       # post-pub close (default)
+bash scripts/post-pub-acid-test.sh 2.0.0 --from wheel      # pre-pub: build+install local wheel
+bash scripts/post-pub-acid-test.sh 2.0.0 --from testpypi   # pre-pub staging
+bash scripts/post-pub-acid-test.sh 2.0.0 --from pypi       # post-pub close (default)
 # → ✅ ACID TEST PASS · It works! (and we know it.)
 ```
 

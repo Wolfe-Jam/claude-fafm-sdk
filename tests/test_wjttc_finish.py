@@ -27,9 +27,9 @@ FAFM = FIXTURES / "fafm"
 # ---------------------------------------------------------------------------
 
 
-def test_finish_version_is_1_7():
-    """v1.7 release gate: package is 1.7.x (folds 1.6) and single-sourced."""
-    assert claude_fafm_sdk.__version__.startswith("1.7")
+def test_finish_version_is_2_0():
+    """v2.0 release gate: Compactable cut is 2.0.x and single-sourced."""
+    assert claude_fafm_sdk.__version__.startswith("2.0")
     assert version("claude-fafm-sdk") == claude_fafm_sdk.__version__
 
 
@@ -44,32 +44,47 @@ def test_finish_interop_contract_on_disk():
 
 
 def test_finish_public_exports():
-    """v1.4 public API surface is importable (merge + packet + receipt + signing)."""
+    """v2.0 public API surface (merge + packet + compact + signing)."""
     from claude_fafm_sdk import (
+        CompactionReceipt,
+        EpochMismatch,
         Fact,
         PacketError,
         Soul,
         __version__,
         canonical_priority,
+        compact_epoch,
         from_claude_dir,
         from_packet,
         generate_keypair,
         merge_packet,
         merge_souls,
+        migrate_epoch,
         packet_is_signed,
         sign_packet,
         to_packet,
         verify_packet,
     )
-    from claude_fafm_sdk.cli import cmd_keygen, cmd_open, cmd_receipt, cmd_verify
+    from claude_fafm_sdk.cli import (
+        cmd_compact,
+        cmd_keygen,
+        cmd_migrate,
+        cmd_open,
+        cmd_receipt,
+        cmd_verify,
+    )
     from claude_fafm_sdk.receipt import run_receipt
 
-    assert __version__.startswith("1.7")
+    assert __version__.startswith("2.0")
     assert callable(from_claude_dir)
     assert callable(merge_souls)
     assert callable(to_packet) and callable(from_packet) and callable(merge_packet)
     assert callable(packet_is_signed)
     assert issubclass(PacketError, ValueError)
+    assert issubclass(EpochMismatch, ValueError)
+    assert callable(compact_epoch) and callable(migrate_epoch)
+    assert CompactionReceipt is not None
+    assert callable(cmd_compact) and callable(cmd_migrate)
     assert callable(run_receipt) and callable(cmd_receipt) and callable(cmd_open)
     # 1.4 Verifiable Provenance surface
     assert callable(generate_keypair) and callable(sign_packet) and callable(verify_packet)

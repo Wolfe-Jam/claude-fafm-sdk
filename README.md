@@ -10,40 +10,40 @@ one vendor.
 
 | | |
 |--|--|
-| **Edition** | **Forgettable Memory** |
-| **Release** | **[1.7.0](https://pypi.org/project/claude-fafm-sdk/1.7.0/)** (policy + debt; folds 1.6) |
-| **Lattice** | **1.5** tombstones · both roads — no merge re-open in 1.6/1.7 |
+| **Edition** | **Compactable** |
+| **Release** | **[2.0.0](https://pypi.org/project/claude-fafm-sdk/2.0.0/)** (epoch compact · refuse · dual-impl) |
+| **Lattice** | **§11 epoch** on **1.5** tombstones · both roads · archive-first |
 
-### What's New in 1.7.0 — Debt + residual-risk
+### What's New in 2.0.0 — Compactable
 
-**Debt + residual-risk.** See the graveyard cost; surface outside-soul copies. Never auto-drop tombstones.
+**Compactable Forgettable Memory.** Epoch compact pays tombstone debt; cross-epoch merge refuses — no silent zombies.
 
-Single install line for the 1.6+1.7 steps (git tags document both; no separate 1.6.0 wheel):
+- **Epoch barrier (E1)** — `Soul.epoch`; same-epoch merge only; packet + hosted identical  
+- **`compact --epoch`** — pay the graveyard in lineage `e→e+1`; archive-first; CompactionReceipt  
+- **`migrate`** — explicit E2 (`refuse` | `project-live`); never silent inside merge  
+- **Zombie suite + dual-impl** — Z1–Z8 goldens; second implementation agrees on E1 + projection  
+- **Still Forgettable** — T1–T8 tombstones held; compact ≠ secure erase  
 
-- **1.6 Policy → tombstone** — first-class `memory.policies`; `propose` / `apply` with clock pin; CLI `policy`  
-- **1.7 Debt + residual** — `debt` (mark-only eligibility); path-bounded `risk-scan` (not RTBF, not wipe)  
-- **Still Forgettable** — MERGE §9 unchanged; compact/GC is **2.0**  
+#### Key features (1.5–2.0)
 
-#### Key features (1.5–1.7)
-
-- **`Soul.forget` / `forget_text` + CLI `forget`** — delete is state; both roads  
-- **`policy` propose/apply** — policies *emit* tombstones; apply needs `--yes` + `--at`  
-- **`debt` / `risk-scan`** — visible graveyard; residual copies the lattice cannot erase  
-- **Tombstone ≠ secure erase** — lattice convergence, not forensic wipe  
+- **`Soul.forget` / CLI `forget`** — delete is state; both roads  
+- **`policy` · `debt` · `risk-scan`** — policies emit tombstones; visible debt; residual honesty  
+- **`compact` / `migrate`** — pay debt safely; cross-epoch refuses (or explicit migrate)  
+- **Tombstone ≠ secure erase · compact ≠ wipe** — lattice honesty bounds  
 - **Verifiable Provenance (1.4)** — optional Ed25519 (`[sign]` extra)  
 - **Provable · Sendable · Mergeable** (1.3 → 1.1)  
 
-**Arc:** Mergeable → Sendable → Provable → Verifiable → **Forgettable** → (policy · debt) → *Compactable 2.0 later*
+**Arc:** Mergeable → Sendable → Provable → Verifiable → **Forgettable** → policy · debt → **Compactable**
 
-Full detail: [CHANGELOG](CHANGELOG.md) · [TESTING](TESTING.md) · [faf.one/blog/forgettable-memory](https://faf.one/blog/forgettable-memory)
+Full detail: [CHANGELOG](CHANGELOG.md) · [TESTING](TESTING.md) · [MERGE §11](MERGE.md) · [faf.one/blog/forgettable-memory](https://faf.one/blog/forgettable-memory)
 
 ```sh
-uvx claude-fafm-sdk --version          # → 1.7.0
+uvx claude-fafm-sdk --version          # → 2.0.0
 uvx claude-fafm-sdk forget --help
 claude-fafm-sdk debt -f soul.fafm
-claude-fafm-sdk policy propose --at 2026-07-30T12:00:00Z
-claude-fafm-sdk risk-scan . ./backup
-claude-fafm-sdk seal -f soul.fafm -o out.fafmp   # tombstones ride the packet
+claude-fafm-sdk compact --epoch -f soul.fafm --at 2026-07-31T12:00:00Z --archive soul.e0.fafm
+claude-fafm-sdk migrate --to 1 --mode project-live -f soul.fafm --at 2026-07-31T12:00:00Z --archive pre.fafm
+claude-fafm-sdk seal -f soul.fafm -o out.fafmp   # epoch + tombstones ride the packet
 ```
 
 Offline-first: the local `Soul` works with no account. Connect a free
@@ -57,9 +57,9 @@ Offline-first: the local `Soul` works with no account. Connect a free
 
 ```sh
 uv add claude-fafm-sdk                 # in a project (recommended)
-pip3 install claude-fafm-sdk==1.7.0    # pin the front door you expect
+pip3 install claude-fafm-sdk==2.0.0    # pin the front door you expect
 # optional provenance:
-pip3 install 'claude-fafm-sdk[sign]==1.7.0'
+pip3 install 'claude-fafm-sdk[sign]==2.0.0'
 # optional hosted namepoint client:
 uv add "claude-fafm-sdk[namepoint]"
 ```
@@ -80,11 +80,12 @@ claude-fafm-sdk etch "ships uv-first"    # write a memory
 claude-fafm-sdk recall uv                # recall it  (filters: --tag --type --priority)
 claude-fafm-sdk ls                       # list every fact, ranked
 claude-fafm-sdk forget install           # convergent delete by id (tombstone)
-claude-fafm-sdk debt                     # visible tombstone debt (1.7)
+claude-fafm-sdk debt                     # visible tombstone debt
+claude-fafm-sdk compact --epoch --at … --archive …   # pay debt (2.0)
 ```
 
 Core loop — `init`, `etch`, `recall`, `ls`, `forget` — plus `policy`, `debt`,
-`risk-scan`. Run `claude-fafm-sdk --help` (or `<cmd> --help`) for the full surface.
+`risk-scan`, `compact`, `migrate`. Run `claude-fafm-sdk --help` for the full surface.
 
 Hand `soul.fafm` to `grok-faf-voice` and it reads it — same format, no fork.
 

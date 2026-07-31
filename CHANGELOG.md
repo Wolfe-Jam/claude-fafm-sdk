@@ -3,6 +3,34 @@
 All notable changes to `claude-fafm-sdk` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [2.0.0] — 2026-07-31
+
+**Compactable Forgettable Memory.** Epoch compact pays tombstone debt; cross-epoch merge refuses — no silent zombies.
+
+Second lattice re-open after 1.5 tombstones. MERGE.md **§11** frozen · INTEROP **§14** wire.
+Forget stays forgotten across a lineage break, or merge **explicitly refuses** — never silent resurrection.
+
+### Added
+- **`Soul.epoch`** (default 0) — lineage field; always emitted by ≥2.0 writers.
+- **`EpochMismatch` (E1)** — same-epoch merge only; packet + hosted identical barrier.
+- **`compact_epoch` + `CompactionReceipt` (E3–E4)** — observable facts only; empty tombstones; epoch+1; receipt on wire.
+- **`migrate_epoch` (E2)** — explicit `refuse` | `project-live`; never auto inside merge.
+- **CLI `compact --epoch`** — archive-first (`--archive` / `--i-archived`) + `--at` clock pin.
+- **CLI `migrate --to`** — E2 surface with archive gate on project-live.
+- **Zombie suite Z1–Z8** — hand goldens in `tests/test_wjttc_epoch.py`.
+- **Dual-impl** — `reference_merge` epoch/E1 + compact/migrate projection (CvRDT bar for 2.0).
+- **TAF Receipt** — CI prints proof over time to `taf-receipts` (sister of FAF).
+
+### Changed
+- Wire seal goldens include `epoch: 0` (SPK1 payload + signed golden).
+- Arc: … → Forgettable → policy · debt → **Compactable**.
+
+### Notes
+- **Compact ≠ secure erase** — archives, old packets, disks may still hold bytes.
+- **Watermark GC is 2.0.1+** — not in this cut (needs peer frontier).
+- **1.5–1.7 lattice held** — T1–T8 tombstones, policies, debt, residual still green.
+- Public share: **PyPI 2.0.0** is the major Compactable Release; 1.7.0 remains the prior front door.
+
 ## [1.7.0] — 2026-07-30
 
 **Debt + residual-risk.** See the graveyard cost; surface outside-soul copies. Never auto-drop tombstones.
