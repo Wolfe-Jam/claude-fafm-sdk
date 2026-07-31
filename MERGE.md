@@ -367,7 +367,9 @@ When specified later: only drop tombstones dominated by a **stable frontier**; s
 - [x] Z2 goldens + packet refuse (`tests/test_wjttc_epoch.py`); same-epoch merge  
 - [x] `compact_epoch` + CompactionReceipt (`compact.py`)  
 - [x] CLI `compact --epoch` (archive gate + `--at`)  
-- [x] Z3–Z8 goldens in `test_wjttc_epoch.py`  
+- [x] CLI `migrate` (E2 refuse | project-live + archive gate)  
+- [x] Z3–Z8 goldens in `test_wjttc_epoch.py` · Z7 CLI archive-first  
+- [x] Dual-impl compact/migrate projection (`reference_merge` + epoch tests)  
 - [x] T1–T8 still green on epoch-0 souls (held)
 
 **No code ships 2.0 product cut without Doc Gate + acid + version 2.0.0.** Lattice laws Z2+Z3 green on main.

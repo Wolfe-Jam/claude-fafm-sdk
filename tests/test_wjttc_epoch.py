@@ -459,3 +459,97 @@ def test_migrate_project_live():
     assert m.epoch == 5
     assert _ids(m) == {"a"}
     assert m.tombstones == {}
+
+
+# ── Dual-impl compact / migrate projection (MERGE §11.8 dual-impl bar) ───────
+
+
+def _fact_projection(soul: Soul) -> set[tuple]:
+    """Comparable live fact set for dual-impl (id, text, ts, priority)."""
+    return {
+        (f.id, f.text, f.timestamp or "", f.priority)
+        for f in soul.facts
+    }
+
+
+def test_dual_impl_compact_projection_agrees():
+    """SDK compact_epoch and reference compact_epoch project the same live set."""
+    from claude_fafm_sdk import compact_epoch as sdk_compact
+
+    s = _s(
+        Fact(text="alpha", id="a", timestamp=T1, priority="high"),
+        Fact(text="beta", id="b", timestamp=T1),
+        Fact(text="gamma id-less", timestamp=T1),
+        epoch=0,
+    )
+    s.forget("b", deleted_at=T2)
+    s.forget_text("gamma id-less", deleted_at=T2)
+
+    # same actor/archive so receipt identity matches under both oracles
+    sdk_new, sdk_r = sdk_compact(s, at=T2, actor="dual", archive_ref="a.fafm")
+    ref_new, ref_r = reference_merge.compact_epoch(
+        s, at=T2, actor="dual", archive_ref="a.fafm"
+    )
+
+    assert sdk_new.epoch == ref_new.epoch == 1
+    assert sdk_new.tombstones == {} and ref_new.tombstones == {}
+    assert _fact_projection(sdk_new) == _fact_projection(ref_new)
+    assert _ids(sdk_new) == {"a"}
+    assert sdk_r.from_epoch == ref_r.from_epoch == 0
+    assert sdk_r.to_epoch == ref_r.to_epoch == 1
+    assert sdk_r.tombstones_before == ref_r.tombstones_before == 2
+    assert sdk_r.facts_before == ref_r.facts_before
+    assert sdk_r.facts_after == ref_r.facts_after == len(sdk_new.facts)
+    # logical equality (sdk oracle includes receipts; same inputs → match)
+    assert sdk_equal(sdk_new, ref_new)
+    # reference oracle: projection + epoch + empty graveyard
+    assert reference_merge.souls_equal(sdk_new, ref_new)
+
+
+def test_dual_impl_compact_deterministic_across_impls():
+    from claude_fafm_sdk import compact_epoch as sdk_compact
+
+    s = _s(
+        Fact(text="x", id="x", timestamp=T1),
+        Fact(text="y", id="y", timestamp=T1),
+        epoch=2,
+    )
+    s.forget("y", deleted_at=T2)
+    a1, _ = sdk_compact(s, at=T2, actor="t")
+    a2, _ = sdk_compact(s, at=T2, actor="t")
+    b1, _ = reference_merge.compact_epoch(s, at=T2, actor="t")
+    b2, _ = reference_merge.compact_epoch(s, at=T2, actor="t")
+    assert _fact_projection(a1) == _fact_projection(a2) == _fact_projection(b1) == _fact_projection(b2)
+    assert a1.epoch == b1.epoch == 3
+
+
+def test_dual_impl_migrate_project_live_agrees():
+    from claude_fafm_sdk import migrate_epoch as sdk_migrate
+
+    s = _s(
+        Fact(text="a", id="a", timestamp=T1),
+        Fact(text="b", id="b", timestamp=T1),
+        epoch=0,
+    )
+    s.forget("b", deleted_at=T2)
+    m_sdk = sdk_migrate(s, 5, mode="project-live", at=T2)
+    m_ref = reference_merge.migrate_epoch(s, 5, mode="project-live", at=T2)
+    assert m_sdk.epoch == m_ref.epoch == 5
+    assert m_sdk.tombstones == m_ref.tombstones == {}
+    assert _fact_projection(m_sdk) == _fact_projection(m_ref)
+    assert _ids(m_sdk) == _ids(m_ref) == {"a"}
+    assert sdk_equal(m_sdk, m_ref)
+    assert reference_merge.souls_equal(m_sdk, m_ref)
+
+
+def test_dual_impl_migrate_refuse_agrees():
+    from claude_fafm_sdk import migrate_epoch as sdk_migrate
+
+    s = _s(Fact(text="a", id="a", timestamp=T1), epoch=1)
+    # same epoch — both return source
+    assert sdk_migrate(s, 1, mode="refuse") is s or sdk_migrate(s, 1, mode="refuse").epoch == 1
+    assert reference_merge.migrate_epoch(s, 1, mode="refuse").epoch == 1
+    with pytest.raises(EpochMismatch):
+        sdk_migrate(s, 2, mode="refuse")
+    with pytest.raises(EpochMismatch):
+        reference_merge.migrate_epoch(s, 2, mode="refuse")

@@ -161,6 +161,21 @@ def cmd_forget(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cli_archive_gate(args: argparse.Namespace, *, verb: str) -> str | None:
+    """ARCHIVE-DEFAULT gate (MERGE §11.4 Z7). Returns archive_ref or None if blocked.
+
+    None return means the caller already printed an error and should exit 1.
+    Empty string is not used — success always yields a non-empty note string.
+    """
+    if not args.archive and not getattr(args, "i_archived", False):
+        print(
+            f"{verb} requires --archive PATH (save prior soul) "
+            "or --i-archived (you already archived)"
+        )
+        return None
+    return "ok"  # actual path/note filled by caller after load
+
+
 def cmd_compact(args: argparse.Namespace) -> int:
     """Epoch compact (MERGE §11.4) — archive-first; pays tombstone debt in epoch+1."""
     path = Path(args.file)
@@ -170,11 +185,7 @@ def cmd_compact(args: argparse.Namespace) -> int:
     if not args.at:
         print("compact --epoch requires --at <RFC3339-Z> (clock pin)")
         return 1
-    if not args.archive and not args.i_archived:
-        print(
-            "compact --epoch requires --archive PATH (save prior soul) "
-            "or --i-archived (you already archived)"
-        )
+    if _cli_archive_gate(args, verb="compact --epoch") is None:
         return 1
     soul = Soul.load(path)
     archive_ref = None
@@ -197,6 +208,60 @@ def cmd_compact(args: argparse.Namespace) -> int:
         f"tombstones {receipt.tombstones_before}→0"
     )
     print("  note: cross-epoch merge refuses (E1); compact ≠ secure erase")
+    return 0
+
+
+def cmd_migrate(args: argparse.Namespace) -> int:
+    """Explicit epoch migrate (MERGE §11.3 E2) — never silent; not merge."""
+    from .compact import migrate_epoch
+    from .merge import EpochMismatch
+
+    path = Path(args.file)
+    if not path.exists():
+        print(f"{path} not found — run: claude-fafm-sdk init")
+        return 1
+    mode = (args.mode or "refuse").strip()
+    if mode not in ("refuse", "project-live"):
+        print(f"migrate --mode must be refuse|project-live (got {mode!r})")
+        return 1
+    if mode == "project-live":
+        if not args.at:
+            print("migrate --mode project-live requires --at <RFC3339-Z> (clock pin)")
+            return 1
+        if _cli_archive_gate(args, verb="migrate --mode project-live") is None:
+            return 1
+    soul = Soul.load(path)
+    if mode == "project-live" and args.archive:
+        ap = Path(args.archive)
+        soul.save(ap)
+        print(f"archived → {ap}")
+    try:
+        new_soul = migrate_epoch(
+            soul,
+            int(args.to),
+            mode=mode,
+            at=args.at,
+            actor=args.actor or "cli:migrate",
+        )
+    except EpochMismatch as e:
+        print(f"migrate refuse: {e}")
+        return 1
+    except ValueError as e:
+        print(f"migrate error: {e}")
+        return 1
+    if mode == "refuse":
+        print(
+            f"migrate refuse: already at epoch {soul.epoch} "
+            f"(target {int(args.to)}) — no write"
+        )
+        return 0
+    new_soul.save(path)
+    print(
+        f"migrated → ./{path}  epoch {soul.epoch}→{new_soul.epoch}  "
+        f"mode=project-live  facts {len(soul.facts)}→{len(new_soul.facts)}  "
+        f"tombstones {len(soul.tombstones)}→0"
+    )
+    print("  note: project-live is not a merge of lagging peers; compact ≠ secure erase")
     return 0
 
 
@@ -884,6 +949,43 @@ def main(argv: list[str] | None = None) -> int:
     pc.add_argument("--archive-ref", default=None, help="note for receipt when using --i-archived")
     pc.add_argument("--actor", default=None, help="receipt actor (default cli:compact)")
     pc.set_defaults(func=cmd_compact)
+
+    pmg = sub.add_parser(
+        "migrate",
+        help="explicit epoch migrate (2.0 §11.3 E2) — refuse|project-live; never auto in merge",
+    )
+    pmg.add_argument(
+        "--to",
+        type=int,
+        required=True,
+        metavar="EPOCH",
+        help="target epoch (integer >= 0)",
+    )
+    pmg.add_argument(
+        "--mode",
+        choices=("refuse", "project-live"),
+        default="refuse",
+        help="refuse (default: EpochMismatch if differ) | project-live (observable facts only)",
+    )
+    pmg.add_argument("-f", "--file", default=DEFAULT_FILE)
+    pmg.add_argument(
+        "--at",
+        default=None,
+        help="RFC3339-Z clock pin (required for project-live)",
+    )
+    pmg.add_argument(
+        "--archive",
+        default=None,
+        metavar="PATH",
+        help="write prior soul here before project-live (ARCHIVE-DEFAULT)",
+    )
+    pmg.add_argument(
+        "--i-archived",
+        action="store_true",
+        help="confirm you already archived (project-live)",
+    )
+    pmg.add_argument("--actor", default=None, help="operator note (default cli:migrate)")
+    pmg.set_defaults(func=cmd_migrate)
 
     prs = sub.add_parser(
         "risk-scan",

@@ -309,6 +309,7 @@ def logical_state(soul: Soul) -> dict[str, Any]:
         "retention": soul.retention,
         "created": soul.created,
         "last_etched": soul.last_etched,
+        "epoch": int(getattr(soul, "epoch", 0) or 0),  # MERGE §11 lineage
         "facts": facts,
         "preferences": _opaque_logical(soul.preferences),
         "custom": _opaque_logical(soul.custom),
@@ -367,3 +368,132 @@ def merge_souls(a: Soul, b: Soul) -> Soul:
 def souls_equal(x: Soul, y: Soul) -> bool:
     """Logical (not byte) equality — §8 from spec."""
     return logical_state(x) == logical_state(y)
+
+
+def compact_epoch(
+    soul: Soul,
+    *,
+    at: str,
+    actor: str | None = None,
+    archive_ref: str | None = None,
+) -> tuple[Soul, Any]:
+    """Independent E3 compact (MERGE §11.4) — dual-impl of SDK compact_epoch.
+
+    Uses this module's tombstone suppression, not ``claude_fafm_sdk.merge``.
+    Receipt type is shared wire data (CompactionReceipt); projection is clean-room.
+    """
+    import copy
+
+    from claude_fafm_sdk.compact import CompactionReceipt
+
+    if not at or not str(at).strip():
+        raise ValueError("compact_epoch requires non-empty at= (RFC3339-Z clock pin)")
+    at = str(at).strip()
+    e = int(getattr(soul, "epoch", 0) or 0)
+    obs = _observable_facts(soul)
+    facts = [
+        Fact(
+            text=f.text,
+            id=f.id,
+            type=f.type,
+            priority=f.priority,
+            tags=list(f.tags),
+            links=list(f.links),
+            timestamp=f.timestamp,
+            source=f.source,
+            extra=copy.deepcopy(f.extra),
+        )
+        for f in obs
+    ]
+    prior_receipts = list(getattr(soul, "compaction_receipts", []) or [])
+    receipt = CompactionReceipt(
+        from_epoch=e,
+        to_epoch=e + 1,
+        at=at,
+        tombstones_before=len(soul.tombstones),
+        facts_before=len(soul.facts),
+        facts_after=len(facts),
+        actor=actor,
+        archive_ref=archive_ref,
+    )
+    new = Soul(
+        soul.namepoint,
+        profile=soul.profile,
+        facts=facts,
+        retention=soul.retention,
+        created=soul.created,
+        index=[],
+        sessions=copy.deepcopy(list(soul.sessions)),
+        preferences=copy.deepcopy(dict(soul.preferences)),
+        custom=copy.deepcopy(dict(soul.custom)),
+        extra=copy.deepcopy(dict(soul.extra)),
+        memory_extra=copy.deepcopy(dict(soul.memory_extra)),
+        tombstones={},
+        policies=list(getattr(soul, "policies", []) or []),
+        policy_auto=bool(getattr(soul, "policy_auto", False)),
+        epoch=e + 1,
+        compaction_receipts=prior_receipts + [receipt],
+    )
+    new.last_etched = max(soul.last_etched or "", at)
+    new.rebuild_index()
+    return new, receipt
+
+
+def migrate_epoch(
+    source: Soul,
+    target_epoch: int,
+    *,
+    mode: str = "refuse",
+    at: str | None = None,
+) -> Soul:
+    """Independent E2 migrate (MERGE §11.3) — dual-impl of SDK migrate_epoch."""
+    import copy
+
+    from claude_fafm_sdk.merge import EpochMismatch
+
+    te = int(target_epoch)
+    if te < 0:
+        raise ValueError("target_epoch must be >= 0")
+    se = int(getattr(source, "epoch", 0) or 0)
+    if mode == "refuse":
+        if se != te:
+            raise EpochMismatch(se, te)
+        return source
+    if mode != "project-live":
+        raise ValueError(f"unknown migrate mode: {mode!r} (use refuse|project-live)")
+    pin = (at or "").strip() or (source.last_etched or source.created)
+    obs = _observable_facts(source)
+    facts = [
+        Fact(
+            text=f.text,
+            id=f.id,
+            type=f.type,
+            priority=f.priority,
+            tags=list(f.tags),
+            links=list(f.links),
+            timestamp=f.timestamp,
+            source=f.source,
+            extra=copy.deepcopy(f.extra),
+        )
+        for f in obs
+    ]
+    new = Soul(
+        source.namepoint,
+        profile=source.profile,
+        facts=facts,
+        retention=source.retention,
+        created=source.created,
+        sessions=copy.deepcopy(list(source.sessions)),
+        preferences=copy.deepcopy(dict(source.preferences)),
+        custom=copy.deepcopy(dict(source.custom)),
+        extra=copy.deepcopy(dict(source.extra)),
+        memory_extra=copy.deepcopy(dict(source.memory_extra)),
+        tombstones={},
+        policies=list(getattr(source, "policies", []) or []),
+        policy_auto=bool(getattr(source, "policy_auto", False)),
+        epoch=te,
+        compaction_receipts=list(getattr(source, "compaction_receipts", []) or []),
+    )
+    new.last_etched = max(source.last_etched or "", pin)
+    new.rebuild_index()
+    return new
