@@ -35,6 +35,7 @@ from claude_fafm_sdk.merge import content_hash as sdk_chash
 from claude_fafm_sdk.merge import merge_souls as sdk_merge
 from claude_fafm_sdk.merge import souls_equal as sdk_equal
 from claude_fafm_sdk.soul import Fact, Soul
+from claude_fafm_sdk.soul import txt_hash as _dm_txt_hash
 
 # whole module is gated on the clean-room impl being ready
 pytestmark = pytest.mark.skipif(
@@ -103,8 +104,6 @@ _sessions = st.lists(
 # re-etch (fact ts > deleted_at), and delete-wins ties all fire in the differential.
 # deleted_at values interleave the fact timestamps above. Keys built via the data-model
 # txt_hash so a ("txt", …) tombstone actually targets a generated "alpha"/"café" fact.
-from claude_fafm_sdk.soul import txt_hash as _dm_txt_hash
-
 _tomb_keys = st.sampled_from(
     [
         ("id", "a"), ("id", "b"), ("id", "c"), ("id", "ghost"),

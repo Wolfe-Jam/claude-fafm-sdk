@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import copy
-
 import pytest
 
 from claude_fafm_sdk import Soul, merge_souls
 from claude_fafm_sdk.packet import merge_packet, to_packet
-from claude_fafm_sdk.policy import Policy, apply_policies, merge_policies, propose_policies
+from claude_fafm_sdk.policy import Policy, apply_policies, merge_policies
 from claude_fafm_sdk.soul import Fact, txt_hash
 
 
