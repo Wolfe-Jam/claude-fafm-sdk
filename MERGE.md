@@ -360,16 +360,17 @@ When specified later: only drop tombstones dominated by a **stable frontier**; s
 
 ### 11.10 Implementation checklist (code after this freeze)
 
-- [ ] `Soul.epoch` load/save (default 0)  
-- [ ] `EpochMismatch` on merge / merge_packet  
+- [x] `Soul.epoch` load/save (default 0) — epoch-only slice  
+- [x] `EpochMismatch` on merge / merge_packet — E1 + dual-impl (reference_merge)  
+- [x] Seal carries epoch (`normalize_for_seal`)  
+- [x] INTEROP addendum §14 (wire)  
+- [x] Z2 goldens + packet refuse (`tests/test_wjttc_epoch.py`); same-epoch merge  
 - [ ] `compact_epoch` + CompactionReceipt  
 - [ ] CLI `compact --epoch` (archive gate + `--at`)  
-- [ ] Seal carries epoch  
-- [ ] INTEROP addendum §14  
-- [ ] Z1–Z8 goldens + N-version extension  
-- [ ] T1–T8 still green on epoch-0 souls  
+- [ ] Z3–Z8 full suite (post-compact packet cases need compact)  
+- [x] T1–T8 still green on epoch-0 souls (held)
 
-**No code ships 2.0 without Z2 + Z3 + dual-impl green.**
+**No code ships 2.0 without Z2 + Z3 + dual-impl green.** (Z2 dual-impl green; Z3 needs compact.)
 
 ---
 

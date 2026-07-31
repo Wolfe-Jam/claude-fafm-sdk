@@ -321,11 +321,17 @@ def logical_state(soul: Soul) -> dict[str, Any]:
 
 
 def merge_souls(a: Soul, b: Soul) -> Soul:
-    """CvRDT join of two souls (same namepoint). Implement from MERGE.md §1–§9."""
+    """CvRDT join of two souls (same namepoint). Implement from MERGE.md §1–§9 + §11.2."""
+    from claude_fafm_sdk.merge import EpochMismatch
+
     if a.namepoint != b.namepoint:
         raise ValueError(
             f"cannot merge souls with different namepoints: {a.namepoint!r} vs {b.namepoint!r}"
         )
+    ea = int(getattr(a, "epoch", 0) or 0)
+    eb = int(getattr(b, "epoch", 0) or 0)
+    if ea != eb:
+        raise EpochMismatch(ea, eb)
 
     # graveyard joins first; then facts join with forgotten VERSIONS pre-dropped
     # (§9.2 R1' — version-level, not emit-level, or associativity breaks).
@@ -344,6 +350,7 @@ def merge_souls(a: Soul, b: Soul) -> Soul:
         extra=_merge_opaque_map(a.extra, b.extra),
         memory_extra=_merge_opaque_map(a.memory_extra, b.memory_extra),
         tombstones=graveyard,
+        epoch=ea,
     )
     merged.last_etched = max(a.last_etched or "", b.last_etched or "")
     merged.rebuild_index()

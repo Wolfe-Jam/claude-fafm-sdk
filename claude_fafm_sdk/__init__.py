@@ -25,7 +25,7 @@ from .identity import (
     provision_anonymous,
 )
 from .interop import from_claude_dir
-from .merge import merge_souls
+from .merge import EpochMismatch, merge_souls
 from .packet import (
     PacketError,
     from_packet,
@@ -47,6 +47,7 @@ __all__ = [
     "MEMORY_ENDPOINT",
     "PRIORITY_ORDER",
     "DebtReport",
+    "EpochMismatch",
     "Fact",
     "Identity",
     "IdentityError",

@@ -39,6 +39,7 @@ _KNOWN_DOC_KEYS = frozenset(
         "retention",
         "index",
         "memory",
+        "epoch",  # 2.0 Compactable — MERGE §11 / INTEROP §14 (default 0 when absent)
     }
 )
 # Keys under memory that Soul models; other memory keys are residual.
@@ -202,12 +203,17 @@ class Soul:
         tombstones: dict[tuple[str, str], str] | None = None,
         policies: list[Any] | None = None,
         policy_auto: bool = False,
+        epoch: int = 0,
     ) -> None:
         self.namepoint = namepoint
         self.profile = profile
         self.retention = retention
         self.created = created or _utcnow()
         self.last_etched = self.created
+        # Compactable (2.0) — MERGE §11.1; pre-2.0 / missing wire ≡ 0
+        self._epoch = int(epoch) if epoch is not None else 0
+        if self._epoch < 0:
+            raise ValueError("epoch must be >= 0")
         self._facts: list[Fact] = list(facts or [])
         self._by_id: dict[str, int] = {
             f.id: i for i, f in enumerate(self._facts) if f.id is not None
@@ -297,6 +303,18 @@ class Soul:
     def policy_auto(self, value: bool) -> None:
         self._policy_auto = bool(value)
 
+    @property
+    def epoch(self) -> int:
+        """Compact generation / lineage id (MERGE §11). Default 0; never negative."""
+        return self._epoch
+
+    @epoch.setter
+    def epoch(self, value: int) -> None:
+        v = int(value)
+        if v < 0:
+            raise ValueError("epoch must be >= 0")
+        self._epoch = v
+
     @classmethod
     def from_doc(cls, doc: Any, *, namepoint_fallback: str | None = None) -> Soul:
         """Build a Soul from a parsed ``.fafm`` mapping — the shared deserialize
@@ -323,6 +341,13 @@ class Soul:
             raise ValueError("soul doc missing 'namepoint'")
         raw_auto = memory.get("policy_auto", False)
         policy_auto = bool(raw_auto) if raw_auto is not None else False
+        raw_epoch = doc.get("epoch", 0)
+        try:
+            epoch = int(raw_epoch) if raw_epoch is not None else 0
+        except (TypeError, ValueError):
+            epoch = 0
+        if epoch < 0:
+            epoch = 0
         soul = cls(
             namepoint=namepoint,
             profile=doc.get("profile", "voice"),
@@ -338,6 +363,7 @@ class Soul:
             tombstones=_tombstones_from_wire(memory.get("tombstones")),
             policies=memory.get("policies"),
             policy_auto=policy_auto,
+            epoch=epoch,
         )
         soul.last_etched = doc.get("last_etched", soul.created)
         return soul
@@ -381,6 +407,7 @@ class Soul:
             "created": self.created,
             "last_etched": self.last_etched,
             "retention": self.retention,
+            "epoch": int(self._epoch),  # MERGE §11.1 — always emit (incl. 0)
             "index": list(self._index),
             "memory": memory,
         }

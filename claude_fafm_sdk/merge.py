@@ -34,6 +34,26 @@ from typing import Any
 
 from .soul import PRIORITY_RANK, Fact, Soul, canonical_priority
 
+# ── Compactable (2.0) — MERGE §11.2 E1 ──────────────────────────────────────
+
+
+class EpochMismatch(ValueError):
+    """Cross-epoch merge refused (MERGE §11.2). Never silent join across lineages."""
+
+    def __init__(self, epoch_a: int, epoch_b: int) -> None:
+        self.epoch_a = int(epoch_a)
+        self.epoch_b = int(epoch_b)
+        super().__init__(
+            f"cannot merge different epochs: {self.epoch_a} vs {self.epoch_b} "
+            f"(MERGE §11.2 E1 — refuse; use explicit migrate, never silent join)"
+        )
+
+
+def _soul_epoch(soul: Soul) -> int:
+    """Wire-absent ≡ 0 (INTEROP §14 / MERGE §11.1)."""
+    return int(getattr(soul, "epoch", 0) or 0)
+
+
 # ── encodings (PINNED — byte-identical across implementations) ──────────────
 
 
@@ -288,6 +308,10 @@ def merge_souls(a: Soul, b: Soul) -> Soul:
         raise ValueError(
             f"cannot merge different namepoints: {a.namepoint!r} vs {b.namepoint!r}"
         )
+    # E1 — same epoch only (MERGE §11.2); cross-epoch never silent-joins.
+    ea, eb = _soul_epoch(a), _soul_epoch(b)
+    if ea != eb:
+        raise EpochMismatch(ea, eb)
 
     # 1. join the tombstone map FIRST (above the fact merge) — MERGE.md §9.2 step 1.
     tombstones = _merge_tombstones(a.tombstones, b.tombstones)
@@ -335,6 +359,7 @@ def merge_souls(a: Soul, b: Soul) -> Soul:
         tombstones=tombstones,
         policies=policies,
         policy_auto=policy_auto,
+        epoch=ea,  # same as eb after E1
     )
     merged.last_etched = max(a.last_etched, b.last_etched)
     merged.rebuild_index()
@@ -386,6 +411,7 @@ def logical_state(soul: Soul) -> dict[str, Any]:
         "retention": soul.retention,
         "created": soul.created,  # merge join = min; in the oracle so dual-impl cannot drift
         "last_etched": soul.last_etched,
+        "epoch": _soul_epoch(soul),  # MERGE §11 — lineage is logical state
         "facts": facts,
         "preferences": norm_map(soul.preferences),
         "custom": norm_map(soul.custom),
