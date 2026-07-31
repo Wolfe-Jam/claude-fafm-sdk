@@ -365,12 +365,12 @@ When specified later: only drop tombstones dominated by a **stable frontier**; s
 - [x] Seal carries epoch (`normalize_for_seal`)  
 - [x] INTEROP addendum §14 (wire)  
 - [x] Z2 goldens + packet refuse (`tests/test_wjttc_epoch.py`); same-epoch merge  
-- [ ] `compact_epoch` + CompactionReceipt  
-- [ ] CLI `compact --epoch` (archive gate + `--at`)  
-- [ ] Z3–Z8 full suite (post-compact packet cases need compact)  
+- [x] `compact_epoch` + CompactionReceipt (`compact.py`)  
+- [x] CLI `compact --epoch` (archive gate + `--at`)  
+- [x] Z3–Z8 goldens in `test_wjttc_epoch.py`  
 - [x] T1–T8 still green on epoch-0 souls (held)
 
-**No code ships 2.0 without Z2 + Z3 + dual-impl green.** (Z2 dual-impl green; Z3 needs compact.)
+**No code ships 2.0 product cut without Doc Gate + acid + version 2.0.0.** Lattice laws Z2+Z3 green on main.
 
 ---
 

@@ -25,6 +25,7 @@ from .identity import (
     provision_anonymous,
 )
 from .interop import from_claude_dir
+from .compact import CompactionReceipt, compact_epoch, migrate_epoch
 from .merge import EpochMismatch, merge_souls
 from .packet import (
     PacketError,
@@ -46,6 +47,7 @@ __version__ = "1.7.0"
 __all__ = [
     "MEMORY_ENDPOINT",
     "PRIORITY_ORDER",
+    "CompactionReceipt",
     "DebtReport",
     "EpochMismatch",
     "Fact",
@@ -62,6 +64,7 @@ __all__ = [
     "apply_policies",
     "canonical_priority",
     "claim_email",
+    "compact_epoch",
     "debt",
     "from_claude_dir",
     "from_packet",
@@ -70,6 +73,7 @@ __all__ = [
     "load_identity",
     "merge_packet",
     "merge_souls",
+    "migrate_epoch",
     "packet_is_signed",
     "propose_policies",
     "provision_anonymous",

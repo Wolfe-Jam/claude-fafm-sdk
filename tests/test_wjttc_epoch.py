@@ -299,3 +299,162 @@ def test_dual_impl_agree_on_refuse_and_success():
     for merge in _IMPLS.values():
         with pytest.raises(EpochMismatch):
             merge(a0, b1)
+
+
+# ── Compact (E3) + Z3–Z8 ────────────────────────────────────────────────────
+
+
+def test_z4_compact_projection_and_empty_tombstones():
+    from claude_fafm_sdk import compact_epoch
+
+    s = _s(
+        Fact(text="alpha", id="x", timestamp=T1),
+        Fact(text="beta", id="y", timestamp=T1),
+        epoch=0,
+    )
+    s.forget("y", deleted_at=T2)
+    # live fact still present under tombstone (stale re-add corner optional)
+    new, receipt = compact_epoch(s, at=T2, actor="test")
+    assert receipt.from_epoch == 0 and receipt.to_epoch == 1
+    assert receipt.tombstones_before == 1
+    assert receipt.facts_after == 1
+    assert new.epoch == 1
+    assert new.tombstones == {}
+    assert _ids(new) == {"x"}
+    assert len(new.compaction_receipts) == 1
+    # original unchanged
+    assert s.epoch == 0
+    assert ("id", "y") in s.tombstones
+
+
+def test_z5_compact_deterministic():
+    from claude_fafm_sdk import compact_epoch
+    from claude_fafm_sdk.merge import logical_state
+
+    s = _s(
+        Fact(text="alpha", id="x", timestamp=T1),
+        Fact(text="beta", id="y", timestamp=T1),
+        epoch=0,
+    )
+    s.forget("y", deleted_at=T2)
+    n1, r1 = compact_epoch(s, at=T2, actor="test")
+    n2, r2 = compact_epoch(s, at=T2, actor="test")
+    assert logical_state(n1) == logical_state(n2)
+    assert r1.to_wire() == r2.to_wire()
+
+
+def test_z3_packet_pre_forget_post_compact_refuses():
+    """Packet sealed at epoch 0 (with forgotten fact still on peer) vs local epoch 1."""
+    from claude_fafm_sdk import compact_epoch
+
+    # peer still has y (never forgot) — sealed at epoch 0
+    peer = _s(
+        Fact(text="alpha", id="x", timestamp=T1),
+        Fact(text="beta", id="y", timestamp=T1),
+        epoch=0,
+    )
+    pkt = to_packet(peer)
+
+    local = _s(
+        Fact(text="alpha", id="x", timestamp=T1),
+        Fact(text="beta", id="y", timestamp=T1),
+        epoch=0,
+    )
+    local.forget("y", deleted_at=T2)
+    local2, _ = compact_epoch(local, at=T2, actor="test")
+    assert local2.epoch == 1
+    assert "y" not in _ids(local2)
+
+    with pytest.raises(EpochMismatch):
+        merge_packet(local2, pkt)
+    # forgotten stays forgotten in local lineage
+    assert "y" not in _ids(local2)
+
+
+def test_z2_post_compact_vs_pre_compact_soul_refuses():
+    from claude_fafm_sdk import compact_epoch
+
+    a = _s(Fact(text="alpha", id="x", timestamp=T1), epoch=0)
+    a.forget("x", deleted_at=T2)
+    b = _s(Fact(text="alpha", id="x", timestamp=T1), epoch=0)
+    a1, _ = compact_epoch(a, at=T2)
+    with pytest.raises(EpochMismatch):
+        merge_souls(a1, b)
+
+
+def test_z6_dual_transport_same_e1_after_compact():
+    from claude_fafm_sdk import compact_epoch
+
+    a = _s(Fact(text="a", id="a", timestamp=T1), epoch=0)
+    b = _s(Fact(text="b", id="b", timestamp=T1), epoch=0)
+    a1, _ = compact_epoch(a, at=T2)
+    # packet of epoch-0 b into a1 refuses
+    with pytest.raises(EpochMismatch):
+        merge_packet(a1, to_packet(b))
+    # merge_souls same refuse
+    with pytest.raises(EpochMismatch):
+        merge_souls(a1, b)
+
+
+def test_z8_same_epoch_post_compact_peers_merge():
+    from claude_fafm_sdk import compact_epoch
+
+    a = _s(Fact(text="a", id="a", timestamp=T1), epoch=0)
+    b = _s(Fact(text="b", id="b", timestamp=T1), epoch=0)
+    a1, _ = compact_epoch(a, at=T2, actor="t")
+    b1, _ = compact_epoch(b, at=T2, actor="t")
+    assert a1.epoch == b1.epoch == 1
+    m = merge_souls(a1, b1)
+    assert m.epoch == 1
+    assert _ids(m) == {"a", "b"}
+    # dual-impl
+    m2 = reference_merge.merge_souls(a1, b1)
+    assert _ids(m2) == {"a", "b"}
+
+
+def test_compact_requires_at():
+    from claude_fafm_sdk import compact_epoch
+
+    s = _s(Fact(text="a", id="a", timestamp=T1), epoch=0)
+    with pytest.raises(ValueError, match="at"):
+        compact_epoch(s, at="")
+
+
+def test_compact_receipt_on_wire():
+    from claude_fafm_sdk import compact_epoch
+
+    s = _s(Fact(text="a", id="a", timestamp=T1), epoch=0)
+    s.forget("a", deleted_at=T2)
+    new, _ = compact_epoch(s, at=T2, actor="unit", archive_ref="arch.fafm")
+    doc = new.to_doc()
+    assert "compaction_receipts" in doc["memory"]
+    r = doc["memory"]["compaction_receipts"][0]
+    assert r["from_epoch"] == 0 and r["to_epoch"] == 1
+    assert r["archive_ref"] == "arch.fafm"
+    loaded = Soul.from_doc(doc)
+    assert len(loaded.compaction_receipts) == 1
+
+
+def test_re_etch_after_compact():
+    from claude_fafm_sdk import compact_epoch
+
+    s = _s(Fact(text="a", id="a", timestamp=T1), epoch=0)
+    s.forget("a", deleted_at=T2)
+    new, _ = compact_epoch(s, at=T2)
+    new.add(Fact(text="a revived", id="a", timestamp="2026-07-03T00:00:00Z"))
+    assert any(f.id == "a" and "revived" in f.text for f in new.facts)
+
+
+def test_migrate_project_live():
+    from claude_fafm_sdk import migrate_epoch
+
+    s = _s(
+        Fact(text="a", id="a", timestamp=T1),
+        Fact(text="b", id="b", timestamp=T1),
+        epoch=0,
+    )
+    s.forget("b", deleted_at=T2)
+    m = migrate_epoch(s, 5, mode="project-live", at=T2)
+    assert m.epoch == 5
+    assert _ids(m) == {"a"}
+    assert m.tombstones == {}

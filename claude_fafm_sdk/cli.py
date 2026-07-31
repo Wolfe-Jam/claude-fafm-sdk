@@ -161,6 +161,45 @@ def cmd_forget(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_compact(args: argparse.Namespace) -> int:
+    """Epoch compact (MERGE §11.4) — archive-first; pays tombstone debt in epoch+1."""
+    path = Path(args.file)
+    if not path.exists():
+        print(f"{path} not found — run: claude-fafm-sdk init")
+        return 1
+    if not args.at:
+        print("compact --epoch requires --at <RFC3339-Z> (clock pin)")
+        return 1
+    if not args.archive and not args.i_archived:
+        print(
+            "compact --epoch requires --archive PATH (save prior soul) "
+            "or --i-archived (you already archived)"
+        )
+        return 1
+    soul = Soul.load(path)
+    archive_ref = None
+    if args.archive:
+        ap = Path(args.archive)
+        soul.save(ap)  # archive current bytes before lineage break
+        archive_ref = str(ap)
+        print(f"archived → {ap}")
+    elif args.i_archived:
+        archive_ref = args.archive_ref or "(operator: --i-archived)"
+    new_soul, receipt = soul.compact_epoch(
+        at=args.at,
+        actor=args.actor or "cli:compact",
+        archive_ref=archive_ref,
+    )
+    new_soul.save(path)
+    print(
+        f"compacted → ./{path}  epoch {receipt.from_epoch}→{receipt.to_epoch}  "
+        f"facts {receipt.facts_before}→{receipt.facts_after}  "
+        f"tombstones {receipt.tombstones_before}→0"
+    )
+    print("  note: cross-epoch merge refuses (E1); compact ≠ secure erase")
+    return 0
+
+
 def cmd_debt(args: argparse.Namespace) -> int:
     """Show visible tombstone debt (1.7). Never deletes. Eligible = mark only."""
     path = Path(args.file)
@@ -818,6 +857,33 @@ def main(argv: list[str] | None = None) -> int:
         help="e.g. 30d — count tombstones older than this; does NOT delete",
     )
     pd.set_defaults(func=cmd_debt)
+
+    pc = sub.add_parser(
+        "compact",
+        help="epoch compact (2.0 §11) — pay tombstone debt; archive-first; --epoch required",
+    )
+    pc.add_argument(
+        "--epoch",
+        action="store_true",
+        required=True,
+        help="epoch compact (only mode in 2.0.0; watermark later)",
+    )
+    pc.add_argument("-f", "--file", default=DEFAULT_FILE)
+    pc.add_argument("--at", required=True, help="RFC3339-Z clock pin")
+    pc.add_argument(
+        "--archive",
+        default=None,
+        metavar="PATH",
+        help="write prior soul here before compact (ARCHIVE-DEFAULT)",
+    )
+    pc.add_argument(
+        "--i-archived",
+        action="store_true",
+        help="confirm you already archived (skip --archive write)",
+    )
+    pc.add_argument("--archive-ref", default=None, help="note for receipt when using --i-archived")
+    pc.add_argument("--actor", default=None, help="receipt actor (default cli:compact)")
+    pc.set_defaults(func=cmd_compact)
 
     prs = sub.add_parser(
         "risk-scan",

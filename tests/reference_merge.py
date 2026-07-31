@@ -338,6 +338,12 @@ def merge_souls(a: Soul, b: Soul) -> Soul:
     graveyard = _join_tombstones(a.tombstones, b.tombstones)
     surviving = _merge_facts(a.facts, b.facts, graveyard)
 
+    from claude_fafm_sdk.compact import merge_receipts
+
+    receipts = merge_receipts(
+        list(getattr(a, "compaction_receipts", []) or []),
+        list(getattr(b, "compaction_receipts", []) or []),
+    )
     merged = Soul(
         a.namepoint,
         profile=_merge_scalar_register(a.profile, b.profile),
@@ -351,6 +357,7 @@ def merge_souls(a: Soul, b: Soul) -> Soul:
         memory_extra=_merge_opaque_map(a.memory_extra, b.memory_extra),
         tombstones=graveyard,
         epoch=ea,
+        compaction_receipts=receipts,
     )
     merged.last_etched = max(a.last_etched or "", b.last_etched or "")
     merged.rebuild_index()

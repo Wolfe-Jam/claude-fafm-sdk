@@ -47,7 +47,16 @@ _KNOWN_DOC_KEYS = frozenset(
 # it as an opaque LWW map (wrong lattice) and never suppress a fact (freeze §3.2).
 # tombstones (1.5) · policies / policy_auto (1.6) — first-class, never residual LWW
 _KNOWN_MEMORY_KEYS = frozenset(
-    {"facts", "sessions", "preferences", "custom", "tombstones", "policies", "policy_auto"}
+    {
+        "facts",
+        "sessions",
+        "preferences",
+        "custom",
+        "tombstones",
+        "policies",
+        "policy_auto",
+        "compaction_receipts",  # 2.0 MERGE §11.5
+    }
 )
 
 
@@ -204,6 +213,7 @@ class Soul:
         policies: list[Any] | None = None,
         policy_auto: bool = False,
         epoch: int = 0,
+        compaction_receipts: list[Any] | None = None,
     ) -> None:
         self.namepoint = namepoint
         self.profile = profile
@@ -233,6 +243,14 @@ class Soul:
         else:
             self._policies = policies_from_wire(policies)
         self._policy_auto = bool(policy_auto)
+        from .compact import CompactionReceipt, receipts_from_wire
+
+        if compaction_receipts is None:
+            self._compaction_receipts: list[Any] = []
+        elif compaction_receipts and isinstance(compaction_receipts[0], CompactionReceipt):
+            self._compaction_receipts = list(compaction_receipts)
+        else:
+            self._compaction_receipts = receipts_from_wire(compaction_receipts)
         # Document fidelity (INTEROP §1.4 / §5) — soul-owned copies.
         self._index: list[str] = list(index or [])
         self._sessions: list[Any] = list(sessions or [])
@@ -315,6 +333,11 @@ class Soul:
             raise ValueError("epoch must be >= 0")
         self._epoch = v
 
+    @property
+    def compaction_receipts(self) -> list[Any]:
+        """MERGE §11.5 audit list (2.0)."""
+        return self._compaction_receipts
+
     @classmethod
     def from_doc(cls, doc: Any, *, namepoint_fallback: str | None = None) -> Soul:
         """Build a Soul from a parsed ``.fafm`` mapping — the shared deserialize
@@ -364,6 +387,7 @@ class Soul:
             policies=memory.get("policies"),
             policy_auto=policy_auto,
             epoch=epoch,
+            compaction_receipts=memory.get("compaction_receipts"),
         )
         soul.last_etched = doc.get("last_etched", soul.created)
         return soul
@@ -397,6 +421,10 @@ class Soul:
             memory["policies"] = policies_to_wire(self._policies)
         if self._policy_auto:
             memory["policy_auto"] = True
+        if self._compaction_receipts:
+            from .compact import receipts_to_wire
+
+            memory["compaction_receipts"] = receipts_to_wire(self._compaction_receipts)
         for k, v in self._memory_extra.items():
             if k not in _KNOWN_MEMORY_KEYS:
                 memory[k] = copy.deepcopy(v)
@@ -602,6 +630,18 @@ class Soul:
         from .debt import debt as _debt
 
         return _debt(self, at=at, purge_eligible_after=purge_eligible_after)
+
+    def compact_epoch(
+        self,
+        *,
+        at: str,
+        actor: str | None = None,
+        archive_ref: str | None = None,
+    ) -> tuple[Any, Any]:
+        """MERGE §11.4 — return (new_soul, receipt); does not mutate self."""
+        from .compact import compact_epoch as _compact
+
+        return _compact(self, at=at, actor=actor, archive_ref=archive_ref)
 
     def set_policy(
         self,

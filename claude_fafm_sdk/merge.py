@@ -338,12 +338,17 @@ def merge_souls(a: Soul, b: Soul) -> Soul:
     facts = list(by_id.values()) + list(idless.values())
     facts.sort(key=_canonical_sort_key)
 
+    from .compact import merge_receipts
     from .policy import merge_policies
 
     # 1.6 policies — LWW-Element-Map by rule id (INTEROP §13.4); does not suppress facts.
     policies = merge_policies(list(a.policies), list(b.policies))
     # policy_auto: true wins if either side is true (opt-in is sticky under merge)
     policy_auto = bool(a.policy_auto or b.policy_auto)
+    receipts = merge_receipts(
+        list(getattr(a, "compaction_receipts", []) or []),
+        list(getattr(b, "compaction_receipts", []) or []),
+    )
 
     merged = Soul(
         a.namepoint,
@@ -360,6 +365,7 @@ def merge_souls(a: Soul, b: Soul) -> Soul:
         policies=policies,
         policy_auto=policy_auto,
         epoch=ea,  # same as eb after E1
+        compaction_receipts=receipts,
     )
     merged.last_etched = max(a.last_etched, b.last_etched)
     merged.rebuild_index()
@@ -425,6 +431,10 @@ def logical_state(soul: Soul) -> dict[str, Any]:
             for p in soul.policies
         ),
         "policy_auto": bool(soul.policy_auto),
+        "compaction_receipts": frozenset(
+            _canonical_json(r.to_wire() if hasattr(r, "to_wire") else r)
+            for r in (getattr(soul, "compaction_receipts", None) or [])
+        ),
         "index": derived_index,
     }
 
