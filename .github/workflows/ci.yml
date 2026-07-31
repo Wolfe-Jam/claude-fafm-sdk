@@ -162,51 +162,51 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
-          # -ra shows short summary; --tb=no keeps the log parseable and small
-          pytest -q --tb=no -ra 2>&1 | tee /tmp/test-output.txt
+          # junitxml = reliable counts; tee keeps human log for forensics
+          pytest -q --tb=no --junitxml=/tmp/junit.xml 2>&1 | tee /tmp/test-output.txt
 
-      - name: Normalize pytest summary for TAF parser
+      - name: Normalize pytest/junit summary for TAF parser
         run: |
           # faf-taf-git Jest parser wants: "Tests: N passed, M total" (optional failed/skipped)
           python3 <<'PY'
-          import re
+          import xml.etree.ElementTree as ET
           from pathlib import Path
-          text = Path("/tmp/test-output.txt").read_text(errors="replace")
-          # Prefer the final pytest short-summary block, e.g.
-          # "===== 1 failed, 246 passed, 12 skipped in 100.74s ====="
-          passed = failed = skipped = 0
-          m = re.search(
-              r"=+\s*((?:\d+\s+\w+(?:,\s*)?)+)\s+in\s+[\d.]+s",
-              text,
-              re.I,
-          )
-          if m:
-              chunk = m.group(1)
-              def grab(label: str) -> int:
-                  mm = re.search(rf"(\d+)\s+{label}", chunk, re.I)
-                  return int(mm.group(1)) if mm else 0
-              passed = grab("passed")
-              failed = grab("failed")
-              skipped = grab("skipped")
-          else:
-              # fallback: last "N passed" style counts in the file
-              def last(label: str) -> int:
-                  ms = re.findall(rf"(\d+)\s+{label}\b", text, re.I)
-                  return int(ms[-1]) if ms else 0
-              passed, failed, skipped = last("passed"), last("failed"), last("skipped")
-          total = passed + failed + skipped
+
+          junit = Path("/tmp/junit.xml")
+          if not junit.is_file():
+              raise SystemExit("missing /tmp/junit.xml — pytest did not write junit")
+
+          root = ET.parse(junit).getroot()
+          # <testsuites> or single <testsuite>
+          suites = root.findall("testsuite") if root.tag == "testsuites" else [root]
+          passed = failed = skipped = errors = 0
+          for s in suites:
+              t = int(s.attrib.get("tests", 0) or 0)
+              f = int(s.attrib.get("failures", 0) or 0)
+              e = int(s.attrib.get("errors", 0) or 0)
+              sk = int(s.attrib.get("skipped", 0) or 0)
+              failed += f
+              errors += e
+              skipped += sk
+              passed += max(0, t - f - e - sk)
+
+          failed_total = failed + errors
+          total = passed + failed_total + skipped
           if total == 0:
-              raise SystemExit("could not parse pytest counts from /tmp/test-output.txt")
+              raise SystemExit("junitxml has zero tests")
+
           parts = []
-          if failed:
-              parts.append(f"{failed} failed")
+          if failed_total:
+              parts.append(f"{failed_total} failed")
           if skipped:
               parts.append(f"{skipped} skipped")
           parts.append(f"{passed} passed")
           parts.append(f"{total} total")
           line = "Tests: " + ", ".join(parts)
-          with open("/tmp/test-output.txt", "a") as f:
-              f.write("\n" + line + "\n")
+          Path("/tmp/test-output.txt").write_text(
+              Path("/tmp/test-output.txt").read_text(errors="replace") + "\n" + line + "\n",
+              encoding="utf-8",
+          )
           print(line)
           PY
 
