@@ -161,10 +161,35 @@ Only if production concurrent re-etch races exist. No theater suite.
 | Moment | Command / suite |
 |--------|------------------|
 | **Every commit / PR** | Fast core: tombstones + merge_crdt + packet + policies (+ soul) |
-| **Pre-pub 1.7.0 (folded PyPI — includes 1.6)** | Full `tests/` + version identity **1.7.0** + Doc Gate; no separate 1.6.0 wheel |
+| **Pre-pub any release** | Full `tests/` + version identity + Doc Gate |
 | **Pre-pub 2.0 (big Release + blog)** | Full + **zombie suite** + **n-version** + epoch seal goldens |
 | **After MERGE / INTEROP edit** | merge + tombstones + policies (if §13) + interop corpus |
 | **Never skip** | T1–T8 when touching forget, merge, packet, compact, policy apply |
+| **🚨 After every PyPI publish** | **Post-pub acid test** (§4.1) — **MANDATORY receipt** |
+
+### 4.1 Post-pub acid test (norm after release)
+
+**Doctrine:** CI green + upload 200 is not closed.  
+A release is closed only when a **clean install from the live index** runs **real product commands** successfully.
+
+> **It works! (and we know it.)**
+
+Not the repo. Not editable. Not “version string only.” Soul · forget · policy · debt · **packet seal/open** · risk-scan · merge — the path a stranger hits.
+
+```sh
+# From the repo (script only; install is always from PyPI):
+bash scripts/post-pub-acid-test.sh 1.7.0
+# → ✅ POST-PUB ACID TEST PASS · It works! (and we know it.)
+```
+
+| Rule | |
+|------|--|
+| **When** | Immediately after PyPI indexes the version (retry on lag) |
+| **Who** | Human or agent closing `/pubpypi` Step 9 |
+| **Fail** | Release is **not done** — patch forward |
+| **Pass** | The feeling after the 1.7.0 live smoke — that is the **norm**, not a treat |
+
+Also enforced in `~/.claude/skills/pubpypi/SKILL.md` Step 9.
 
 Example fast core:
 
@@ -221,6 +246,8 @@ uv run --extra dev pytest -q
 [ ] CLI authority (propose vs apply) if surface shipped
 [ ] Doc Gate / claims match tests (no secure-erase / no guaranteed)
 [ ] User never has to discover the bug we already broke in CI
+[ ] POST-PUB ACID PASS — clean PyPI install + real commands (scripts/post-pub-acid-test.sh)
+    → "It works! (and we know it.)"
 ```
 
 ---
@@ -230,6 +257,7 @@ uv run --extra dev pytest -q
 | File | Role |
 |------|------|
 | **TESTING.md** (this file) | What / when · ship gates · doctrine |
+| `scripts/post-pub-acid-test.sh` | **Post-pub acid** — stranger install receipt |
 | MERGE.md | Lattice law |
 | INTEROP.md | Format + §12 tombstones + §13 policies |
 | PACKET.md | Seal transport + tombstones on wire |
