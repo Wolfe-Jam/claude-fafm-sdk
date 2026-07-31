@@ -161,11 +161,12 @@ Only if production concurrent re-etch races exist. No theater suite.
 | Moment | Command / suite |
 |--------|------------------|
 | **Every commit / PR** | Fast core: tombstones + merge_crdt + packet + policies (+ soul) |
+| **Every push to main (CI)** | Full `pytest` + **TAF receipt** → `taf-receipts` branch (proof over time) |
 | **Pre-pub any release** | Full `tests/` + version identity + Doc Gate |
 | **Pre-pub 2.0 (big Release + blog)** | Full + **zombie suite** + **n-version** + epoch seal goldens |
 | **After MERGE / INTEROP edit** | merge + tombstones + policies (if §13) + interop corpus |
 | **Never skip** | T1–T8 when touching forget, merge, packet, compact, policy apply |
-| **🚨 After every PyPI publish** | **Post-pub acid test** (§4.1) — **MANDATORY receipt** |
+| **🚨 After every PyPI publish** | **Post-pub acid test** (§4.1) — **MANDATORY stranger receipt** |
 
 ### 4.1 Post-pub acid test (norm after release)
 
@@ -193,6 +194,19 @@ bash scripts/post-pub-acid-test.sh 1.7.0 --from pypi       # post-pub close (def
 | **Pass** | The 1.7.0 feeling — that is the **norm** |
 
 Also enforced in `~/.claude/skills/pubpypi/SKILL.md` Step 9.
+
+### 4.2 TAF — Test Receipt Printer (CI timeline)
+
+**TAF** (Testing AI Format) is the **sister** product: a git-native **receipt printer**, not FAF and not WJTTC.
+
+| Layer | Role here |
+|-------|-----------|
+| **WJTTC + pytest** | Run the brakes / engine under glass |
+| **TAF** | Append one Test Receipt per main CI run → `.taf` on **`taf-receipts`** |
+| **Acid** | Stranger install (wheel/pypi) — release close; optional separate from every-PR TAF |
+
+Workflow: `.github/workflows/ci.yml` job **`taf`** (`Wolfe-Jam/faf-taf-git@v2.2.2`).  
+Docs: https://github.com/Wolfe-Jam/faf-taf-git · *Proof over time. Cannot be gamed.*
 
 Example fast core:
 
