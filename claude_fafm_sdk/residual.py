@@ -9,9 +9,10 @@ Honesty: finds copies of soul/packet bytes that may still hold forgotten content
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 
 @dataclass(frozen=True)

@@ -10,7 +10,6 @@ from claude_fafm_sdk import Soul, debt, risk_scan
 from claude_fafm_sdk.packet import to_packet_file
 from claude_fafm_sdk.soul import Fact
 
-
 AT = "2026-07-30T12:00:00Z"
 OLD = "2026-06-01T00:00:00Z"
 MID = "2026-07-20T00:00:00Z"

@@ -25,8 +25,8 @@ if _ENGINE_ROOT.is_dir() and str(_ENGINE_ROOT) not in sys.path:
     sys.path.insert(0, str(_ENGINE_ROOT))
 
 pytest.importorskip("fafm_engine", reason="fafm_engine not installed / not adjacent")
-from fafm_engine.soul import Fact as EngineFact  # noqa: E402  # after optional importorskip
-from fafm_engine.soul import Soul as EngineSoul  # noqa: E402
+from fafm_engine.soul import Fact as EngineFact  # after optional importorskip
+from fafm_engine.soul import Soul as EngineSoul
 
 
 def _seed_both() -> tuple[Soul, EngineSoul]:

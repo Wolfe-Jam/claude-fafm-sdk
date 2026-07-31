@@ -17,6 +17,8 @@ from .client import (
     NamepointAuthRequired,
     NamepointUnavailable,
 )
+from .compact import CompactionReceipt, compact_epoch, migrate_epoch
+from .debt import DebtReport, debt
 from .identity import (
     Identity,
     IdentityError,
@@ -25,7 +27,6 @@ from .identity import (
     provision_anonymous,
 )
 from .interop import from_claude_dir
-from .compact import CompactionReceipt, compact_epoch, migrate_epoch
 from .merge import EpochMismatch, merge_souls
 from .packet import (
     PacketError,
@@ -36,10 +37,9 @@ from .packet import (
     to_packet,
     to_packet_file,
 )
-from .signer import generate_keypair, sign_packet, verify_packet
-from .debt import DebtReport, debt
 from .policy import Policy, apply_policies, propose_policies
 from .residual import ResidualReport, risk_scan
+from .signer import generate_keypair, sign_packet, verify_packet
 from .soul import PRIORITY_ORDER, Fact, Soul, canonical_priority
 
 __version__ = "1.7.0"

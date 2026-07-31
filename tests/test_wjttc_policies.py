@@ -9,7 +9,6 @@ from claude_fafm_sdk.packet import merge_packet, to_packet
 from claude_fafm_sdk.policy import Policy, apply_policies, merge_policies
 from claude_fafm_sdk.soul import Fact, txt_hash
 
-
 AT = "2026-07-30T12:00:00Z"
 OLDER = "2026-07-01T00:00:00Z"
 NEWER = "2026-07-30T18:00:00Z"

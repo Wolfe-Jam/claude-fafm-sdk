@@ -18,7 +18,8 @@ import pytest
 import reference_merge
 
 from claude_fafm_sdk import EpochMismatch, Soul, merge_souls
-from claude_fafm_sdk.merge import logical_state, merge_souls as sdk_merge
+from claude_fafm_sdk.merge import logical_state
+from claude_fafm_sdk.merge import merge_souls as sdk_merge
 from claude_fafm_sdk.merge import souls_equal as sdk_equal
 from claude_fafm_sdk.packet import from_packet, merge_packet, normalize_for_seal, to_packet
 from claude_fafm_sdk.soul import Fact

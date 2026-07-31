@@ -155,9 +155,8 @@ def _matches_when(fact: Fact, when: dict[str, Any], *, at: str) -> bool:
         want = when["id"]
         if fact.id != want:
             return False
-    if "text" in when:
-        if normalize_text(fact.text) != normalize_text(str(when["text"])):
-            return False
+    if "text" in when and normalize_text(fact.text) != normalize_text(str(when["text"])):
+        return False
     if "tag" in when:
         tags = when["tag"]
         if isinstance(tags, str):

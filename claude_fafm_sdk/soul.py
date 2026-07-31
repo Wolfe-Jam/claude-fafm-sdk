@@ -369,8 +369,7 @@ class Soul:
             epoch = int(raw_epoch) if raw_epoch is not None else 0
         except (TypeError, ValueError):
             epoch = 0
-        if epoch < 0:
-            epoch = 0
+        epoch = max(epoch, 0)
         soul = cls(
             namepoint=namepoint,
             profile=doc.get("profile", "voice"),
