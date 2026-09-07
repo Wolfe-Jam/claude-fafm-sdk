@@ -21,7 +21,7 @@ dependencies = [
 
 [project.optional-dependencies]
 namepoint = [
-    "fastmcp>=3.2",   # hosted reads/writes via MCPaaS — the family-standard MCP client
+    "fastmcp>=4.0.0",   # hosted reads/writes via MCPaaS — the family-standard MCP client
 ]
 sign = [
     "cryptography>=42",  # Ed25519 Verifiable Provenance (1.4) — base + receipt stay zero-crypto
