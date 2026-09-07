@@ -3,6 +3,17 @@
 All notable changes to `claude-fafm-sdk` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [2.1.0] — 2026-09-07 — The FastMCP 4 Edition
+
+**FastMCP 4 is now the floor.** The optional `[namepoint]` extra requires `fastmcp>=4.0.0` — the FAF Python family standard.
+
+The offline-first core is untouched — no new deps, no API change, the lattice is unchanged. This is a plumbing release: the hosted-namepoint client keeps pace with the family.
+
+### Changed
+- **`[namepoint]` extra: `fastmcp>=4.0.0`** (was `>=3.2`). FastMCP 4 is Prefect-owned and extras-split (`fastmcp` → `fastmcp-slim[client,server]`). `client.py`'s `Client` + `StreamableHttpTransport` pattern is unchanged on 4.x; the MCPaaS calls are plain reads/writes (no session state, `on_initialize`, or `ctx.elicit()`), so FastMCP 4's `mode="auto"` default is fine. No `httpx` anywhere in source — the `httpx` → `httpx2` swap is a non-event. `pydantic>=2.12` (FastMCP 4's floor) arrives transitively only when `[namepoint]` is installed.
+
+Full suite passing · ruff + mypy clean on `fastmcp 4.0.3`.
+
 ## [2.0.0] — 2026-07-31
 
 **Compactable Forgettable Memory.** Epoch compact pays tombstone debt; cross-epoch merge refuses — no silent zombies.

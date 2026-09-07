@@ -10,11 +10,17 @@ one vendor.
 
 | | |
 |--|--|
-| **Edition** | **Compactable** |
-| **Release** | **[2.0.0](https://pypi.org/project/claude-fafm-sdk/2.0.0/)** (epoch compact · refuse · dual-impl) |
-| **Lattice** | **§11 epoch** on **1.5** tombstones · both roads · archive-first |
+| **Edition** | **The FastMCP 4 Edition** |
+| **Release** | **[2.1.0](https://pypi.org/project/claude-fafm-sdk/2.1.0/)** (deps: `[namepoint]` → `fastmcp>=4.0.0`) |
+| **Lattice** | **§11 epoch** on **1.5** tombstones · both roads · archive-first (unchanged) |
 
-### What's New in 2.0.0 — Compactable
+### What's New in 2.1.0 — The FastMCP 4 Edition
+
+**FastMCP 4 is now the floor.** The optional `[namepoint]` extra requires `fastmcp>=4.0.0` — the FAF Python family standard.
+
+The offline-first core is untouched — no new deps, no API change, the lattice is unchanged. `client.py`'s `Client` + `StreamableHttpTransport` pattern works as-is on FastMCP 4 (the MCPaaS calls are plain reads/writes, so the `mode="auto"` default is fine); no `httpx` in source, so `httpx` → `httpx2` is a non-event. `pydantic>=2.12` arrives transitively only when `[namepoint]` is installed.
+
+<details><summary><strong>What's New in 2.0.0 — Compactable</strong></summary>
 
 **Compactable Forgettable Memory.** Epoch compact pays tombstone debt; cross-epoch merge refuses — no silent zombies.
 
@@ -23,6 +29,8 @@ one vendor.
 - **`migrate`** — explicit E2 (`refuse` | `project-live`); never silent inside merge  
 - **Zombie suite + dual-impl** — Z1–Z8 goldens; second implementation agrees on E1 + projection  
 - **Still Forgettable** — T1–T8 tombstones held; compact ≠ secure erase  
+</details>
+
 
 #### Key features (1.5–2.0)
 
@@ -38,7 +46,7 @@ one vendor.
 Full detail: [CHANGELOG](CHANGELOG.md) · [TESTING](TESTING.md) · [MERGE §11](MERGE.md) · [faf.one/blog/forgettable-memory](https://faf.one/blog/forgettable-memory)
 
 ```sh
-uvx claude-fafm-sdk --version          # → 2.0.0
+uvx claude-fafm-sdk --version          # → 2.1.0
 uvx claude-fafm-sdk forget --help
 claude-fafm-sdk debt -f soul.fafm
 claude-fafm-sdk compact --epoch -f soul.fafm --at 2026-07-31T12:00:00Z --archive soul.e0.fafm
@@ -57,9 +65,9 @@ Offline-first: the local `Soul` works with no account. Connect a free
 
 ```sh
 uv add claude-fafm-sdk                 # in a project (recommended)
-pip3 install claude-fafm-sdk==2.0.0    # pin the front door you expect
+pip3 install claude-fafm-sdk==2.1.0    # pin the front door you expect
 # optional provenance:
-pip3 install 'claude-fafm-sdk[sign]==2.0.0'
+pip3 install 'claude-fafm-sdk[sign]==2.1.0'
 # optional hosted namepoint client:
 uv add "claude-fafm-sdk[namepoint]"
 ```

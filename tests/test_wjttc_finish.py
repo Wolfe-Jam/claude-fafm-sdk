@@ -1,6 +1,6 @@
-"""WJTTC FINISH — v1.0 release gate (championship finish line).
+"""WJTTC FINISH — 2.x release gate (championship finish line).
 
-Fail = do not ship 1.0.x. One file, every critical v1.0 bar from the
+Fail = do not ship. One file, every critical 2.x bar from the
 build-steps ladder (Steps 1–6). Complements tier suites; does not replace them.
 
 Run:  pytest -q tests/test_wjttc_finish.py
@@ -27,9 +27,9 @@ FAFM = FIXTURES / "fafm"
 # ---------------------------------------------------------------------------
 
 
-def test_finish_version_is_2_0():
-    """v2.0 release gate: Compactable cut is 2.0.x and single-sourced."""
-    assert claude_fafm_sdk.__version__.startswith("2.0")
+def test_finish_version_is_2_x():
+    """2.x release gate: on the Compactable major line, single-sourced."""
+    assert claude_fafm_sdk.__version__.startswith("2.")
     assert version("claude-fafm-sdk") == claude_fafm_sdk.__version__
 
 
@@ -44,7 +44,7 @@ def test_finish_interop_contract_on_disk():
 
 
 def test_finish_public_exports():
-    """v2.0 public API surface (merge + packet + compact + signing)."""
+    """2.x public API surface (merge + packet + compact + signing)."""
     from claude_fafm_sdk import (
         CompactionReceipt,
         EpochMismatch,
@@ -75,7 +75,7 @@ def test_finish_public_exports():
     )
     from claude_fafm_sdk.receipt import run_receipt
 
-    assert __version__.startswith("2.0")
+    assert __version__.startswith("2.")
     assert callable(from_claude_dir)
     assert callable(merge_souls)
     assert callable(to_packet) and callable(from_packet) and callable(merge_packet)
