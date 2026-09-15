@@ -211,7 +211,7 @@ jobs:
           PY
 
       - name: Print TAF receipt
-        uses: Wolfe-Jam/faf-taf-git@v2.2.2
+        uses: Wolfe-Jam/faf-taf-git@v2.3.0
         with:
           test-output-file: /tmp/test-output.txt
           auto-commit: "true"
