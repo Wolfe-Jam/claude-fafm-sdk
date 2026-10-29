@@ -4,6 +4,8 @@
 
 **Home:** [faf.one/memory](https://faf.one/memory) · **Blog:** [Forgettable Memory](https://faf.one/blog/forgettable-memory)
 
+⭐ [Star it on GitHub](https://github.com/Wolfe-Jam/claude-fafm-sdk): bookmarks it for you, helps other devs find it too.
+
 **Portable, cross-vendor AI memory in `.fafm`.** Give an AI agent memory that
 versions with your project and moves between models — instead of being locked to
 one vendor.
