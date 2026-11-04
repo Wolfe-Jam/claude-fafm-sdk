@@ -133,7 +133,7 @@ def test_brake_save_is_fafm_v11_shape():
     s = Soul("@me")
     s.etch("a fact", id="f1")
     doc = s.to_doc()
-    assert doc["version"] == "1.1"
+    assert doc["version"] == "1.2"
     assert "facts" in doc["memory"]
     assert "index" in doc
     assert isinstance(doc["memory"]["sessions"], list)

@@ -192,7 +192,7 @@ def test_a5_unknown_fields_fact_and_doc_extra_preserved(tmp_path):
         "a consumer MUST ignore this, not reject it"
     )
     # Modeled keys win if a residual tried to shadow them (not in fixture, but API).
-    assert rewritten["version"] == "1.1"
+    assert rewritten["version"] == "1.2"  # read 1.1, write 1.2 (never lower, §10)
     assert rewritten["namepoint"] == "@demo"
 
 

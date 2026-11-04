@@ -76,7 +76,7 @@ Loaders MAY supply defaults for missing optional fields when **reading** non-str
 | Writer form | Match `_utcnow()`: `%Y-%m-%dT%H:%M:%SZ` (e.g. `2026-07-22T12:34:56Z`) |
 | On `etch` | Set fact `timestamp` to `_utcnow()`; may advance document `last_etched` |
 | On `add` (merge primitive) | Preserve the incoming Fact’s `timestamp` verbatim |
-| Comparison | Lexicographic string compare is valid for this form (same precision, always `Z`) |
+| Comparison | By **instant** (`.fafm` v1.2 §8.1; MERGE §3.1). For this form it equals lexicographic string order (same precision, always `Z`) |
 
 Consumers MUST tolerate other valid date-time strings when **reading** (schema `format: date-time`); emitters in this SDK use the form above.
 
@@ -299,8 +299,8 @@ Use this when coding Steps 2–6; not part of the prose contract but tracks comp
 | Id-fact entry | `{ id: <string>, deleted_at: <RFC3339-Z> }` |
 | Id-less entry | `{ txt_hash: <hex sha256 of normalize_text(text)>, deleted_at: <RFC3339-Z> }` |
 | Emit | **Only when non-empty** — a soul that never forgot is byte-identical to a ≤1.4 document for seal/wire goldens (T7) |
-| Join | Per key, `max(deleted_at)` — grow-only LWW max-register |
-| Suppress | On emit/merge: drop fact **versions** with `deleted_at >= fact.timestamp` (delete-wins on ties). Full order in MERGE §9.2 |
+| Join | Per key, `max(deleted_at)` as instants — grow-only LWW max-register |
+| Suppress | On emit/merge: drop fact **versions** with `deleted_at >= fact.timestamp`, compared as instants (delete-wins on ties). Full order in MERGE §9.2 |
 
 ### 12.2 Reader classes
 

@@ -68,7 +68,7 @@ def test_from_claude_dir_to_doc_is_facts_not_entries(tmp_path):
     soul = from_claude_dir(CLAUDE_MEM)
     path = soul.to_file(tmp_path / "converted.fafm")
     doc = yaml.safe_load(path.read_text(encoding="utf-8"))
-    assert doc["version"] == "1.1"
+    assert doc["version"] == "1.2"
     assert doc["profile"] == "knowledge"
     assert "facts" in doc["memory"]
     assert "entries" not in doc["memory"]

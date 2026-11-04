@@ -69,8 +69,9 @@ def _crc32(payload: bytes) -> int:
 
 def _seal_fact(f: Fact) -> Fact:
     """Fact in canonical SEAL form for byte-stability: **canonical priority**
-    (``from_packet`` canonicalizes it on load, so raw ``"junk"`` must seal as the
-    ``"standard"`` it re-loads as) + **sorted** tags/links. RAW text is preserved
+    (an unknown value such as ``"junk"`` seals as the ``"standard"`` every consumer
+    reads it as, .fafm §6.1 — the seal is transport, not the document writer, so equal
+    logical state seals to equal bytes) + **sorted** tags/links. RAW text is preserved
     on purpose — the merge oracle's derived index keys on raw ``f.text``, and text
     is byte-stable through YAML unchanged. (T2 already made empty-``ts`` absent.)
     """
@@ -114,6 +115,7 @@ def normalize_for_seal(soul: Soul) -> Soul:
         compaction_receipts=list(getattr(soul, "compaction_receipts", []) or []),
     )
     out.last_etched = soul.last_etched
+    out.version_read = soul.version_read  # .fafm §10: never write below what was read
     out.rebuild_index()
     return out
 

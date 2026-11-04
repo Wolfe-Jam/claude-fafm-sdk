@@ -27,12 +27,12 @@ def test_aero_full_lifecycle_roundtrip(tmp_path):
 
 
 def test_aero_cross_vendor_format_conformance(tmp_path):
-    # The .fafm we write must be canonical vnd.fafm+yaml v1.1 — the shape
+    # The .fafm we write must be canonical vnd.fafm+yaml v1.2 — the shape
     # fafm-engine + grok-faf-voice read. One format, never a fork.
     s = Soul("@me")
     s.etch("a fact", id="x", type="project", priority="high")
     doc = yaml.safe_load((s.save(tmp_path / "c.fafm")).read_text())
-    assert doc["version"] == "1.1"
+    assert doc["version"] == "1.2"
     assert doc["namepoint"] == "@me"
     assert isinstance(doc["memory"]["facts"], list)
     fact = doc["memory"]["facts"][0]

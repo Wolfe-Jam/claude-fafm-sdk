@@ -175,6 +175,7 @@ def compact_epoch(
         compaction_receipts=prior_receipts + [receipt],
     )
     new.last_etched = max(soul.last_etched or "", at)
+    new.version_read = soul.version_read  # .fafm §10: never write below what was read
     new.rebuild_index()
     return new, receipt
 
@@ -239,5 +240,6 @@ def migrate_epoch(
         compaction_receipts=list(getattr(source, "compaction_receipts", []) or []),
     )
     new.last_etched = max(source.last_etched or "", pin)
+    new.version_read = source.version_read  # .fafm §10: never write below what was read
     new.rebuild_index()
     return new

@@ -17,6 +17,7 @@ uv.lock
 *.fafm
 !examples/*.fafm
 !tests/fixtures/fafm/*.fafm
+!tests/fixtures/fafm-spec-v1.2/**/*.fafm
 
 # FAF derived artifacts
 *.fafb

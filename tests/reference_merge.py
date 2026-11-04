@@ -21,7 +21,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import unicodedata
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 # Data model ONLY — do not import from claude_fafm_sdk.merge.
@@ -37,8 +39,60 @@ from claude_fafm_sdk.soul import (
 IMPLEMENTED = True
 
 
+# .fafm v1.2 §8.1: strip EXACTLY these code points after NFC (reference copy, from the
+# spec's list — never the interpreter's own notion of whitespace).
+_SPEC_STRIP_RANGES = (
+    (0x0009, 0x000D), (0x001C, 0x001F), (0x0020, 0x0020), (0x0085, 0x0085),
+    (0x00A0, 0x00A0), (0x1680, 0x1680), (0x2000, 0x200A), (0x2028, 0x2029),
+    (0x202F, 0x202F), (0x205F, 0x205F), (0x3000, 0x3000),
+)
+
+
+def _spec_ws(ch: str) -> bool:
+    cp = ord(ch)
+    return any(lo <= cp <= hi for lo, hi in _SPEC_STRIP_RANGES)
+
+
 def normalize_text(text: str) -> str:
-    return unicodedata.normalize("NFC", text).strip()
+    t = unicodedata.normalize("NFC", text)
+    i, j = 0, len(t)
+    while i < j and _spec_ws(t[i]):
+        i += 1
+    while j > i and _spec_ws(t[j - 1]):
+        j -= 1
+    return t[i:j]
+
+
+# §8.1: clocks compare as INSTANTS. Reference encoding: (2, utc whole seconds, fraction
+# digits with trailing zeros stripped) — digit strings so stripped compare like numbers.
+_RFC = re.compile(
+    r"([0-9]{4})-([0-9]{2})-([0-9]{2})[Tt ]([0-9]{2}):([0-9]{2}):([0-9]{2})"
+    r"(?:\.([0-9]+))?(Z|z|[+-][0-9]{2}:[0-9]{2})"
+)
+
+
+def instant(ts: Any) -> tuple[Any, ...]:
+    if ts is None or ts == "":
+        return (0,)
+    raw = str(ts)
+    m = _RFC.fullmatch(raw)
+    if not m:
+        return (1, raw)
+    y, mo, d, h, mi, sec, frac, off = m.groups()
+    try:
+        if off in ("Z", "z"):
+            tz = timezone.utc
+        else:
+            if int(off[4:6]) > 59:
+                return (1, raw)
+            span = timedelta(hours=int(off[1:3]), minutes=int(off[4:6]))
+            tz = timezone(span if off[0] == "+" else -span)
+        dt = datetime(int(y), int(mo), int(d), int(h), int(mi), int(sec), tzinfo=tz)
+    except ValueError:
+        return (1, raw)
+    utc = dt.astimezone(timezone.utc)
+    whole = int((utc - datetime(1970, 1, 1, tzinfo=timezone.utc)).total_seconds())
+    return (2, whole, (frac or "").rstrip("0"))
 
 
 def _canonical_json(obj: Any) -> str:
@@ -97,6 +151,7 @@ def scalar_hash(f: Fact) -> str:
 
 def lww_key(f: Fact) -> tuple[Any, ...]:
     return (
+        instant(f.timestamp),
         f.timestamp or "",
         PRIORITY_RANK.get(canonical_priority(f.priority), 1),
         f.id or "",
@@ -106,6 +161,7 @@ def lww_key(f: Fact) -> tuple[Any, ...]:
 
 def scalar_lww_key(f: Fact) -> tuple[Any, ...]:
     return (
+        instant(f.timestamp),
         f.timestamp or "",
         PRIORITY_RANK.get(canonical_priority(f.priority), 1),
         f.id or "",
@@ -161,10 +217,11 @@ def txt_hash(text: str) -> str:
 
 
 def _join_tombstones(x: dict[tuple[str, str], str], y: dict[tuple[str, str], str]):
-    """Max-register join over the union of keys (grow-only; latest delete wins)."""
+    """Max-register join over the union of keys (grow-only; latest delete wins), by
+    instant (§8.1), spelling as tiebreak."""
     joined = dict(x)
     for key, when in y.items():
-        if joined.get(key, "") < when:
+        if key not in joined or (instant(joined[key]), joined[key]) < (instant(when), when):
             joined[key] = when
     return joined
 
@@ -174,9 +231,10 @@ def _tomb_key(f: Fact) -> tuple[str, str]:
 
 
 def _suppressed_by(f: Fact, tombs: dict[tuple[str, str], str]) -> bool:
-    """A tombstone kills a fact when deleted_at >= fact clock (delete-wins tie)."""
+    """A tombstone kills a fact when deleted_at >= fact clock, as instants (§8.1;
+    delete-wins tie; absent ts is lowest)."""
     when = tombs.get(_tomb_key(f))
-    return when is not None and when >= (f.timestamp or "")
+    return when is not None and instant(when) >= instant(f.timestamp)
 
 
 def _normalize_fact(f: Fact) -> Fact:
@@ -201,8 +259,8 @@ def _merge_id_facts(facts: list[Fact]) -> Fact:
     # Rule T (§4a): tags/links/extra come ONLY from versions at the winning clock —
     # concurrent peers union, strictly-lower-clock versions contribute nothing (cross-clock
     # union is non-associative under retroactive tombstones). Group-at-once here.
-    win_clock = hi.timestamp or ""
-    peers = [f for f in facts if (f.timestamp or "") == win_clock]
+    win_clock = instant(hi.timestamp)
+    peers = [f for f in facts if instant(f.timestamp) == win_clock]
     tags: set[str] = set()
     links: set[str] = set()
     extra: dict[str, Any] = {}

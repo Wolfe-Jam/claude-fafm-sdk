@@ -1,6 +1,6 @@
 """Soul — the local model of a ``.fafm`` knowledge soul (open, offline).
 
-Reads/writes ``application/vnd.fafm+yaml`` v1.1 and provides the basic memory
+Reads/writes ``application/vnd.fafm+yaml`` (writes v1.2; never lower than read) and provides the basic memory
 operations every consumer needs: ``etch`` (write a fact, dedup by id) and
 ``recall`` (deterministic filter + priority/recency rank). This is the OPEN
 baseline — it works offline with no account. Semantic/ranked recall and
@@ -16,8 +16,10 @@ from __future__ import annotations
 import copy
 import datetime
 import hashlib
+import re
 import unicodedata
 from dataclasses import dataclass, field
+from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
@@ -64,11 +66,104 @@ def _utcnow() -> str:
     return datetime.datetime.now(tz=datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+# .fafm v1.2 §8.1 — the pinned strip set (29 code points). Normative: NOT Python's
+# ``str.strip()`` (which follows the running interpreter's Unicode tables), so a later
+# Python cannot move ``txt_hash`` off spec. Same set as Python 3.13 / Unicode 15.1.
+_FAFM_STRIP = "".join(
+    chr(c)
+    for c in (
+        *range(0x0009, 0x000E),  # U+0009–U+000D
+        *range(0x001C, 0x0020),  # U+001C–U+001F
+        0x0020,
+        0x0085,
+        0x00A0,
+        0x1680,
+        *range(0x2000, 0x200B),  # U+2000–U+200A
+        0x2028,
+        0x2029,
+        0x202F,
+        0x205F,
+        0x3000,
+    )
+)
+
+
 def normalize_text(text: str) -> str:
-    """NFC + strip — the pinned text normalization (MERGE.md §5.1). The data-model
-    copy: it keys id-less facts and the ``txt_hash`` of a tombstone. Each merge
-    implementation keeps its OWN copy (N-version); this one serves the Soul API."""
-    return unicodedata.normalize("NFC", text).strip()
+    """NFC, then strip exactly the §8.1 code-point set — the pinned text normalization
+    (MERGE.md §5.1, .fafm v1.2 §8.1). The data-model copy: it keys id-less facts and
+    the ``txt_hash`` of a tombstone. Each merge implementation keeps its OWN copy
+    (N-version); this one serves the Soul API."""
+    return unicodedata.normalize("NFC", text).strip(_FAFM_STRIP)
+
+
+# RFC 3339 date-time (§10). Parsed by hand: Python 3.10's ``fromisoformat`` rejects
+# ``Z`` and fractional seconds that are not 3 or 6 digits.
+_RFC3339 = re.compile(
+    r"([0-9]{4})-([0-9]{2})-([0-9]{2})[Tt ]([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]+))?"
+    r"(?:([Zz])|([+-])([0-9]{2}):([0-9]{2}))\Z"
+)
+_EPOCH = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+
+
+def _rfc3339_strings(value: Any) -> Any:
+    """Copy of ``value`` with YAML-native dates as RFC 3339 strings (.fafm §10).
+
+    An aware datetime becomes UTC with ``Z``; a naive one keeps its ISO form (it has
+    no offset to convert); a bare date becomes ``YYYY-MM-DD``. Everything else is
+    returned unchanged, so unknown fields round-trip as they were read.
+    """
+    if isinstance(value, datetime.datetime):
+        if value.tzinfo is None:
+            return value.isoformat()
+        utc = value.astimezone(datetime.timezone.utc).isoformat()
+        return utc[: -len("+00:00")] + "Z" if utc.endswith("+00:00") else utc
+    if isinstance(value, datetime.date):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {k: _rfc3339_strings(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_rfc3339_strings(v) for v in value]
+    return value
+
+
+def _instant_key(ts: Any) -> tuple[Any, ...]:
+    """Total order on a clock string, by INSTANT (.fafm v1.2 §8.1). Data-model copy.
+
+    ``(0,)`` absent/empty · ``(1, raw)`` not RFC 3339 (raw string order, below every
+    instant) · ``(2, seconds_since_epoch)`` as an exact ``Fraction`` (any offset, any
+    fractional precision). Two spellings of one instant compare equal.
+    """
+    if not ts:
+        return (0,)
+    if not isinstance(ts, str):
+        return (1, str(ts))
+    m = _RFC3339.match(ts)
+    if m is None:
+        return (1, ts)
+    y, mo, d, hh, mi, ss, frac, z, sign, oh, om = m.groups()
+    try:
+        offset = datetime.timedelta(0)
+        if z is None:
+            if int(om) > 59:
+                return (1, ts)
+            offset = datetime.timedelta(hours=int(oh), minutes=int(om))
+            if sign == "-":
+                offset = -offset
+        dt = datetime.datetime(
+            int(y), int(mo), int(d), int(hh), int(mi), int(ss),
+            tzinfo=datetime.timezone(offset),
+        )
+    except ValueError:
+        return (1, ts)
+    whole = (dt - _EPOCH) // datetime.timedelta(seconds=1)
+    sub = Fraction(int(frac), 10 ** len(frac)) if frac else Fraction(0)
+    return (2, Fraction(whole) + sub)
+
+
+def _tomb_join_key(deleted_at: str) -> tuple[Any, ...]:
+    """Max-join key for one tombstone: the instant, then the raw string so two
+    spellings of one instant still join deterministically (commutative)."""
+    return (_instant_key(deleted_at), deleted_at)
 
 
 def txt_hash(text: str) -> str:
@@ -99,8 +194,8 @@ def _tombstones_from_wire(raw: Any) -> dict[tuple[str, str], str]:
             key = ("txt", str(entry["txt_hash"]))
         else:
             continue
-        if key not in out or deleted_at > out[key]:
-            out[key] = deleted_at
+        if key not in out or _tomb_join_key(deleted_at) > _tomb_join_key(out[key]):
+            out[key] = deleted_at  # max by instant (§8.1), not by string
     return out
 
 
@@ -116,10 +211,53 @@ def _tombstones_to_wire(tombstones: dict[tuple[str, str], str]) -> list[dict[str
 
 
 def canonical_priority(p: str | None) -> str:
-    """Map any input (incl. legacy vocab) to a canonical priority."""
+    """Map any input (incl. legacy vocab) to a canonical priority — the CONSUMER
+    view (§6.1: an unknown value is treated as ``standard``)."""
     if p is None:
         return "standard"
     return _LEGACY_PRIORITY.get(p, p if p in PRIORITY_RANK else "standard")
+
+
+def wire_priority(p: Any) -> str:
+    """The WRITER view of a priority read from a document (.fafm v1.2 §10): apply
+    the §6.1 legacy mapping (``low → ephemeral``, ``medium → standard``) and keep
+    any other value unchanged (``urgent`` stays ``urgent``). Absent → ``standard``.
+    Ranking still goes through :func:`canonical_priority`."""
+    if p is None:
+        return "standard"
+    p = str(p)
+    return _LEGACY_PRIORITY.get(p, p)
+
+
+# .fafm version this SDK writes for a new document (v1.2 content: tombstones, say).
+FAFM_VERSION = "1.2"
+_VERSION_RE = re.compile(r"(\d+)\.(\d+)\Z")
+
+
+def _version_tuple(v: Any) -> tuple[int, int] | None:
+    m = _VERSION_RE.match(str(v)) if v is not None else None
+    return (int(m.group(1)), int(m.group(2))) if m else None
+
+
+def _write_version(read: Any) -> str:
+    """The ``version`` to write (§10): ``FAFM_VERSION``, but never lower than the
+    version the document was read at."""
+    mine = _version_tuple(FAFM_VERSION)
+    theirs = _version_tuple(read)
+    if theirs is not None and mine is not None and theirs > mine:
+        return f"{theirs[0]}.{theirs[1]}"
+    return FAFM_VERSION
+
+
+def max_version_read(*versions: str | None) -> str | None:
+    """The highest well-formed ``version`` among documents a soul was built from, so
+    a derived soul (merge, compact, seal) still never writes below what was read."""
+    best: tuple[tuple[int, int], str] | None = None
+    for v in versions:
+        t = _version_tuple(v)
+        if t is not None and (best is None or t > best[0]):
+            best = (t, f"{t[0]}.{t[1]}")
+    return best[1] if best else None
 
 
 @dataclass
@@ -157,7 +295,7 @@ class Fact:
             text=obj["text"],
             id=obj.get("id"),
             type=obj.get("type"),
-            priority=canonical_priority(obj.get("priority")),
+            priority=wire_priority(obj.get("priority")),  # §10: keep unknown values
             tags=list(obj.get("tags") or []),
             links=list(obj.get("links") or []),
             timestamp=obj.get("timestamp"),
@@ -216,6 +354,9 @@ class Soul:
         compaction_receipts: list[Any] | None = None,
     ) -> None:
         self.namepoint = namepoint
+        # .fafm version the document was READ at (None for a new soul) — §10: a
+        # writer never writes a lower version than it read.
+        self.version_read: str | None = None
         self.profile = profile
         self.retention = retention
         self.created = created or _utcnow()
@@ -350,6 +491,9 @@ class Soul:
         """
         if not isinstance(doc, dict):
             raise TypeError("soul is not a YAML mapping")
+        # .fafm §10: a YAML loader may hand back native dates for unquoted timestamps;
+        # turn them back into RFC 3339 strings (UTC with Z) before anything reads them.
+        doc = _rfc3339_strings(doc)
         memory = doc.get("memory") or {}
         if not isinstance(memory, dict):
             memory = {}
@@ -389,6 +533,8 @@ class Soul:
             compaction_receipts=memory.get("compaction_receipts"),
         )
         soul.last_etched = doc.get("last_etched", soul.created)
+        raw_version = doc.get("version")
+        soul.version_read = None if raw_version is None else str(raw_version)
         return soul
 
     @classmethod
@@ -398,7 +544,7 @@ class Soul:
         return cls.from_doc(doc, namepoint_fallback=Path(path).stem)
 
     def to_doc(self) -> dict[str, Any]:
-        """The ``.fafm`` v1.1 document this soul serializes to.
+        """The ``.fafm`` document this soul serializes to (``version`` per §10).
 
         Known keys first, then residual top-level extras (INTEROP §4).
         Residual keys never overwrite modeled keys.
@@ -428,7 +574,7 @@ class Soul:
             if k not in _KNOWN_MEMORY_KEYS:
                 memory[k] = copy.deepcopy(v)
         doc: dict[str, Any] = {
-            "version": "1.1",
+            "version": _write_version(self.version_read),
             "profile": self.profile,
             "namepoint": self.namepoint,
             "created": self.created,
@@ -577,8 +723,8 @@ class Soul:
         if not deleted_at:
             raise ValueError("tombstone deleted_at must be non-empty (RFC3339-Z)")
         cur = self._tombstones.get(key)
-        if cur is None or deleted_at > cur:
-            self._tombstones[key] = deleted_at
+        if cur is None or _tomb_join_key(deleted_at) > _tomb_join_key(cur):
+            self._tombstones[key] = deleted_at  # max by instant (§8.1)
 
     def forget(self, id: str, *, deleted_at: str | None = None) -> bool:
         """Forget an id-fact so the deletion **converges** (1.5). Removes the live
