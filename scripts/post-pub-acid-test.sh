@@ -80,10 +80,19 @@ source .venv/bin/activate
 
 case "$FROM" in
   pypi)
-    uv pip install "${PKG}==${VERSION}" || fail "pip install ${PKG}==${VERSION} from PyPI"
+    # Right after a publish the PyPI CDN can lag the version page by a minute: retry, then fail.
+    ok=0
+    for i in 1 2 3; do
+      uv pip install --refresh "${PKG}==${VERSION}" && { ok=1; break; }
+      echo "  (PyPI not serving ${VERSION} yet; retry ${i}/3 in 30 s)"; sleep 30
+    done
+    [ "$ok" = 1 ] || fail "pip install ${PKG}==${VERSION} from PyPI"
     ;;
   testpypi)
+    # uv only looks at the first index that has the package; TestPyPI holds the rc,
+    # PyPI holds its dependencies, so let it pick the best match across both.
     uv pip install \
+      --index-strategy unsafe-best-match \
       --index-url https://test.pypi.org/simple/ \
       --extra-index-url https://pypi.org/simple/ \
       "${PKG}==${VERSION}" || fail "pip install from TestPyPI"
