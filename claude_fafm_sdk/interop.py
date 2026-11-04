@@ -3,8 +3,8 @@
 ``from_claude_dir`` converts a Claude Code auto-memory store (topic ``.md``
 files with YAML frontmatter) into a knowledge-profile :class:`Soul`.
 
-Approach cited from ``fafm-engine/scripts/serialize_memory.py`` — not the
-proof ``convert_md_to_fafm.py`` (which emits ``memory.entries`` / version 1.0).
+Emits ``memory.facts`` in the knowledge profile (not the older ``memory.entries``
+shape of version 1.0).
 
 Claude ``metadata.originSessionId`` is parked under
 ``Fact.extra["provenance"]`` (reserved schema field; not a first-class Fact

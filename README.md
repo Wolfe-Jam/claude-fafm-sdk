@@ -18,10 +18,10 @@ one vendor.
 
 ### What's New in 2.2.0 — The Spec v1.2 Edition
 
-**Reads and writes .fafm v1.2 to the letter: clocks compare as instants, and nothing it read is lowered, dropped or lost.**
+**Reads and writes .fafm v1.2: clocks compare as instants, and the document writer keeps everything it read.**
 
 - **Clocks are instants.** Tombstone suppression, the tombstone join and fact ordering compare real moments in time, so `12:00+05:00` is before `09:00Z`. A delete still wins a tie; a later re-etch still survives.
-- **Nothing it read is lost.** It never writes a lower `version` than it read, keeps unknown `priority` and `type` values, and keeps a tombstone even when its dates are unquoted.
+- **The writer keeps what it read.** It never writes a lower `version` than it read, keeps unknown `priority` and `type` values, and keeps a tombstone even when its dates are unquoted.
 - **Text keys are pinned.** `txt_hash` strips exactly the 29 code points the spec lists, after NFC, so a future Python can't move it.
 - **The spec's own tests run here:** all 13 v1.2 conformance fixtures and 14 `txt_hash` vectors.
 

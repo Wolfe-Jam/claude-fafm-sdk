@@ -5,9 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow 
 
 ## [2.2.0] — 2026-11-04 — The Spec v1.2 Edition
 
-**Reads and writes .fafm v1.2 to the letter: clocks compare as instants, and nothing it read is lowered, dropped or lost.**
+**Reads and writes .fafm v1.2: clocks compare as instants, and the document writer keeps everything it read.**
 
 Aligns with `.fafm` spec v1.2 (`Wolfe-Jam/faf` @ `0277dc2`). 431 tests pass. Behaviour changes only for non-`Z` or fractional clocks and unknown priorities; documents the SDK wrote before (seconds-precision `Z`) merge as they did.
+
+### Housekeeping
+- The sdist no longer ships the local `.hypothesis/` cache; `TESTING.md` and an `interop.py` docstring no longer cite private paths.
+
+### We claim / we do not claim
+- **We claim:** the 13 `.fafm` v1.2 conformance fixtures validate as `expected.json` says, and every valid one survives an SDK read → write (version not lowered, unknown fields, `type` and `priority` values kept, tombstones kept); the 14 `txt_hash` vectors match; tombstone suppression and joins and fact ordering compare instants (offsets and fractions included). All in this repo's tests.
+- **We do not claim:** that merge or seal keep an unknown `priority` (they canonicalise it to `standard`, for ranking and stable seal bytes; only the document writer keeps it); that opaque map clocks (`e["t"]` in preferences/custom) compare as instants (they still compare as strings); that a timestamp with no offset is repaired (it is passed through as read); that other `.fafm` implementations agree with this one.
 
 ### Changed
 - **Clocks compare as instants, not strings** (§8.1). Tombstone suppression and the tombstone join (`max(deleted_at)`) use the UTC instant, so `…12:00:00+05:00` (07:00Z) is before a `…09:00:00Z` delete and `…09:00:00.5Z` is after `…09:00:00Z`. A tie still suppresses (delete wins), a fact with no `timestamp` is still suppressed, a strictly later re-etch still survives. The fact LWW keys and Rule T use the same order (MERGE §3.1); string order for facts with instant order for tombstones is not associative. Every copy changed: `soul.py` (wire loader, `forget` upsert), `merge.py`, `tests/reference_merge.py`. For SDK-emitted `%Y-%m-%dT%H:%M:%SZ` stamps the order is unchanged.

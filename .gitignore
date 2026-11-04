@@ -22,3 +22,6 @@ uv.lock
 # FAF derived artifacts
 *.fafb
 project.html
+
+# hypothesis example database (local cache)
+.hypothesis/
