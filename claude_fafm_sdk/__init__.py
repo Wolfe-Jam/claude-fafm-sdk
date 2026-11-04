@@ -42,7 +42,7 @@ from .residual import ResidualReport, risk_scan
 from .signer import generate_keypair, sign_packet, verify_packet
 from .soul import PRIORITY_ORDER, Fact, Soul, canonical_priority
 
-__version__ = "2.2.0"
+__version__ = "2.2.0rc1"
 
 __all__ = [
     "MEMORY_ENDPOINT",
