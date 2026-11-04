@@ -5,8 +5,7 @@
 If a law is not a red-line test, it is a rumor.
 
 This file is part of the product contract for Forgettable Memory and the
-trajectory to Compactable (2.0). Full roadmap: private vault  
-`PLANET-FAF/memory/plan-forgettable-memory-2-0.md`.  
+trajectory to Compactable (2.0).  
 Interop / merge law: [INTEROP.md](INTEROP.md) · [MERGE.md](MERGE.md).
 
 ---
@@ -281,8 +280,6 @@ uv run --extra dev pytest -q
 | CHANGELOG.md | Edition claims |
 | tests/ | The red lines |
 
-Private plan (vault): `PLANET-FAF/memory/plan-forgettable-memory-2-0.md`  
-Plan close-out: `PLANET-FAF/memory/plan-closeout-forgettable-memory-2-0-2026-07-30.md`
 
 ---
 

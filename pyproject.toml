@@ -52,6 +52,9 @@ build-backend = "hatchling.build"
 [tool.hatch.version]
 path = "claude_fafm_sdk/__init__.py"
 
+[tool.hatch.build.targets.sdist]
+exclude = [".hypothesis", ".venv", "dist", "*.fafmp"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["claude_fafm_sdk"]
 
