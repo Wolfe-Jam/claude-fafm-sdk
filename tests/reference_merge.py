@@ -90,8 +90,8 @@ def instant(ts: Any) -> tuple[Any, ...]:
         dt = datetime(int(y), int(mo), int(d), int(h), int(mi), int(sec), tzinfo=tz)
     except ValueError:
         return (1, raw)
-    utc = dt.astimezone(timezone.utc).replace(tzinfo=None)
-    whole = int((utc - datetime(1970, 1, 1)).total_seconds())
+    utc = dt.astimezone(timezone.utc)
+    whole = int((utc - datetime(1970, 1, 1, tzinfo=timezone.utc)).total_seconds())
     return (2, whole, (frac or "").rstrip("0"))
 
 
