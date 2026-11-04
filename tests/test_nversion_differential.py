@@ -51,7 +51,15 @@ _texts = st.sampled_from(["alpha", "beta", " alpha ", "alpha\n", "café", "café
 _prios = st.sampled_from(
     ["ephemeral", "standard", "high", "critical", "low", "medium", "junk"]
 )
-_ts = st.sampled_from([None, "", "2026-01-01T00:00:00Z", "2026-01-02T00:00:00Z"])
+# .fafm v1.2 §8.1: clocks compare as INSTANTS. Non-Z offsets and fractional seconds
+# make string order and instant order disagree (05:00+05:00 == 00:00Z; .5Z sorts below
+# Z as a string), so the laws are checked where the two orders differ.
+_ts = st.sampled_from(
+    [
+        None, "", "2026-01-01T00:00:00Z", "2026-01-02T00:00:00Z",
+        "2026-01-01T05:00:00+05:00", "2026-01-01T12:00:00.5Z", "2026-01-02T01:00:00+01:00",
+    ]
+)
 
 
 @st.composite
@@ -112,7 +120,10 @@ _tomb_keys = st.sampled_from(
     ]
 )
 _tomb_when = st.sampled_from(
-    ["2026-01-01T00:00:00Z", "2026-01-02T00:00:00Z", "2026-03-01T00:00:00Z"]
+    [
+        "2026-01-01T00:00:00Z", "2026-01-02T00:00:00Z", "2026-03-01T00:00:00Z",
+        "2026-01-01T12:00:00+05:00", "2026-01-01T12:00:00.25Z",
+    ]
 )
 _tombstones = st.dictionaries(_tomb_keys, _tomb_when, max_size=3)
 

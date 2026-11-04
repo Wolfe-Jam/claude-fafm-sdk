@@ -27,12 +27,15 @@ invalidate a low-clock version. A no-tombstone soul now merges as 1.4
 """
 from __future__ import annotations
 
+import calendar
 import hashlib
 import json
+import re
 import unicodedata
+from decimal import Decimal
 from typing import Any
 
-from .soul import PRIORITY_RANK, Fact, Soul, canonical_priority
+from .soul import PRIORITY_RANK, Fact, Soul, canonical_priority, max_version_read
 
 # ── Compactable (2.0) — MERGE §11.2 E1 ──────────────────────────────────────
 
@@ -57,9 +60,57 @@ def _soul_epoch(soul: Soul) -> int:
 # ── encodings (PINNED — byte-identical across implementations) ──────────────
 
 
+# .fafm v1.2 §8.1 pinned strip set — impl-local copy (N-version). Listed by code point
+# so neither this copy nor the data-model one follows the interpreter's Unicode tables.
+_STRIP_SET = (
+    "\t\n\x0b\x0c\r"  # U+0009–U+000D
+    "\x1c\x1d\x1e\x1f"  # U+001C–U+001F
+    " \x85\xa0\u1680"
+    "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a"
+    "\u2028\u2029\u202f\u205f\u3000"
+)
+
+
 def normalize_text(text: str) -> str:
-    """NFC + strip. No casefold, no internal-whitespace collapse (MERGE.md §5.1)."""
-    return unicodedata.normalize("NFC", text).strip()
+    """NFC, then strip exactly the §8.1 set. No casefold, no internal-whitespace
+    collapse (MERGE.md §5.1)."""
+    return unicodedata.normalize("NFC", text).strip(_STRIP_SET)
+
+
+# ── clocks by INSTANT (.fafm v1.2 §8.1) — impl-local copy (N-version) ───────
+
+_TS = re.compile(
+    r"^([0-9]{4})-([0-9]{2})-([0-9]{2})[Tt ]([0-9]{2}):([0-9]{2}):([0-9]{2})"
+    r"(\.[0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})$"
+)
+
+
+def _clock(ts: Any) -> tuple[Any, ...]:
+    """Total order on a fact ``timestamp`` / tombstone ``deleted_at``, by instant.
+
+    Absent/empty lowest ``(0,)``; a non-RFC-3339 string ``(1, raw)`` (string order,
+    below every instant); an RFC 3339 instant ``(2, Decimal UTC epoch seconds)`` —
+    exact for any offset and any fractional precision.
+    """
+    if not ts:
+        return (0,)
+    raw = ts if isinstance(ts, str) else str(ts)
+    m = _TS.match(raw)
+    if m is None or raw.endswith("\n"):
+        return (1, raw)
+    y, mo, d, hh, mi, ss, frac, off = m.groups()
+    yi, moi, di, hi, mii, si = int(y), int(mo), int(d), int(hh), int(mi), int(ss)
+    if not (yi >= 1 and 1 <= moi <= 12 and 1 <= di <= calendar.monthrange(yi, moi)[1]
+            and hi <= 23 and mii <= 59 and si <= 59):
+        return (1, raw)
+    secs = calendar.timegm((yi, moi, di, hi, mii, si, 0, 0, 0))
+    if off not in ("Z", "z"):
+        oh, om = int(off[1:3]), int(off[4:6])
+        if oh > 23 or om > 59:
+            return (1, raw)
+        delta = oh * 3600 + om * 60
+        secs = secs - delta if off[0] == "+" else secs + delta
+    return (2, Decimal(secs) + (Decimal(frac) if frac else Decimal(0)))
 
 
 def _txt_hash(text: str) -> str:
@@ -114,13 +165,16 @@ def _value_hash(v: Any) -> str:
     return hashlib.sha256(_canonical_json(v).encode("utf-8")).hexdigest()
 
 
-def lww_key(f: Fact) -> tuple[str, int, str, str]:
-    """(timestamp, priority_rank, id, content_hash); greater wins; empty ts lowest.
+def lww_key(f: Fact) -> tuple[Any, ...]:
+    """(instant, timestamp, priority_rank, id, content_hash); greater wins; empty ts
+    lowest. The clock is compared as an instant (.fafm v1.2 §8.1) so fact order and
+    tombstone suppression agree — mixing string and instant order breaks associativity.
 
     Full-fact key: used for the id-less G-Set winner and the sort order.
     """
     return (
-        f.timestamp or "",
+        _clock(f.timestamp),  # by instant (§8.1) — same order the tombstones use
+        f.timestamp or "",  # spelling tiebreak: two spellings of one instant stay total
         PRIORITY_RANK.get(canonical_priority(f.priority), 1),
         f.id or "",
         content_hash(f),
@@ -150,9 +204,10 @@ def _scalar_hash(f: Fact) -> str:
     return hashlib.sha256(_canonical_json(obj).encode("utf-8")).hexdigest()
 
 
-def _scalar_lww_key(f: Fact) -> tuple[str, int, str, str]:
+def _scalar_lww_key(f: Fact) -> tuple[Any, ...]:
     """Scalar-only LWW key — stable under tag/link/extra union (for same-id merge)."""
     return (
+        _clock(f.timestamp),
         f.timestamp or "",
         PRIORITY_RANK.get(canonical_priority(f.priority), 1),
         f.id or "",
@@ -210,7 +265,7 @@ def _merge_same_id(x: Fact, y: Fact) -> Fact:
     # associative once a tombstone can retroactively invalidate a low-clock version: after
     # `c@lo[L1] ⨯ c@hi[]` the fold forgets L1 came from a sub-tombstone version. Winner-clock
     # tags (max + union-on-ties, both associative) restore C/A/I.
-    if (x.timestamp or "") == (y.timestamp or ""):
+    if _clock(x.timestamp) == _clock(y.timestamp):  # same INSTANT = concurrent
         tags = sorted(set(x.tags) | set(y.tags))  # concurrent → union, emitted sorted
         links = sorted(set(x.links) | set(y.links))
         extra = _merge_fact_extra(x.extra, y.extra)  # per-key, order-independent
@@ -273,12 +328,13 @@ def _det_scalar(x: str, y: str) -> str:
 def _merge_tombstones(
     a: dict[tuple[str, str], str], b: dict[tuple[str, str], str]
 ) -> dict[tuple[str, str], str]:
-    """Join two tombstone maps: per key, ``max(deleted_at)`` (grow-only; a later
-    delete deepens the grave). Commutative, associative, idempotent (freeze §2.1)."""
+    """Join two tombstone maps: per key, ``max(deleted_at)`` by INSTANT (.fafm v1.2
+    §8.1), spelling as tiebreak (grow-only; a later delete deepens the grave).
+    Commutative, associative, idempotent (freeze §2.1)."""
     out: dict[tuple[str, str], str] = dict(a)
     for key, deleted_at in b.items():
         cur = out.get(key)
-        if cur is None or deleted_at > cur:
+        if cur is None or (_clock(deleted_at), deleted_at) > (_clock(cur), cur):
             out[key] = deleted_at
     return out
 
@@ -290,13 +346,14 @@ def _suppression_key(f: Fact) -> tuple[str, str]:
 
 
 def _is_suppressed(f: Fact, tombstones: dict[tuple[str, str], str]) -> bool:
-    """True iff a tombstone outranks this fact's clock → drop it on emit. Delete-wins
-    on ties: suppress iff ``deleted_at >= fact_clock`` where ``fact_clock = ts or ""``
-    (empty/missing ts sorts lowest, so any real tombstone beats it) (freeze §2.3)."""
+    """True iff a tombstone outranks this fact's clock → drop it on emit. Compared as
+    INSTANTS, not strings (.fafm v1.2 §8.1). Delete-wins on ties: suppress iff
+    ``instant(deleted_at) >= instant(ts)``; a missing ts sorts lowest, so any real
+    tombstone beats it; a strictly later re-etch survives (freeze §2.3)."""
     deleted_at = tombstones.get(_suppression_key(f))
     if deleted_at is None:
         return False
-    return deleted_at >= (f.timestamp or "")
+    return _clock(deleted_at) >= _clock(f.timestamp)
 
 
 # ── the merge ───────────────────────────────────────────────────────────────
@@ -368,6 +425,8 @@ def merge_souls(a: Soul, b: Soul) -> Soul:
         compaction_receipts=receipts,
     )
     merged.last_etched = max(a.last_etched, b.last_etched)
+    # .fafm §10: a writer never writes a lower version than it read (max of both sides).
+    merged.version_read = max_version_read(a.version_read, b.version_read)
     merged.rebuild_index()
     return merged
 

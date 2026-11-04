@@ -38,12 +38,23 @@ Soul ≅  LWW-Element-Map (facts by id)          # scalar fields per id
 ## 3. The LWW key (total order — the hinge)
 
 ```
-lww_key(fact) = ( fact.timestamp or "",                     # missing/empty sorts lowest
+lww_key(fact) = ( instant(fact.timestamp),                 # §3.1 — by INSTANT; missing/empty lowest
+                  fact.timestamp or "",                     # spelling tiebreak (same instant)
                   PRIORITY_RANK[canonical_priority(prio)],  # ephemeral0<standard1<high2<critical3
                   fact.id or "",
                   content_hash(fact) )                       # §5 — final total tiebreak (mandatory)
 greater key WINS.
 ```
+
+### 3.1 Clocks compare as instants (`.fafm` v1.2 §8.1 — Unreleased)
+`instant(t)` is a total order on a clock string: absent/empty lowest · a non-RFC-3339 string next
+(raw string order) · an RFC 3339 date-time as its exact UTC instant (any offset, any fractional
+precision). Fact clocks (`lww_key`, `_scalar_lww_key`, Rule T "same clock" = same instant) and
+tombstone clocks (§9 join + suppression) use this **one** order: mixing string order for facts with
+instant order for tombstones is non-associative (`tests/test_wjttc_fafm_v12.py::
+test_fact_clock_uses_the_same_order_as_suppression`). For SDK-emitted `%Y-%m-%dT%H:%M:%SZ`
+stamps the order is identical to the previous string compare; only non-`Z` and fractional inputs
+change.
 
 ## 4. Facts
 
@@ -158,17 +169,17 @@ A tombstone map: `key → deleted_at`, an **LWW max-register** per key (grow-onl
 
 - **`txt_hash`** = lowercase-hex SHA-256 of UTF-8 `normalize_text(text)` (§5.1) — the **same keying as the id-less G-Set**, NOT `content_hash`. Hash the text so the forgotten content does not linger.
 - **`deleted_at`** = RFC3339-Z, **required non-empty** on every write (`forget` → `_utcnow()`).
-- **Join per key** = `max(deleted_at)` (a later delete deepens the grave).
+- **Join per key** = `max(deleted_at)` **as instants** (§3.1; a later delete deepens the grave; same instant, two spellings → greater string, so the join stays commutative).
 - **Emit** `memory.tombstones` only when non-empty → a soul that never forgot is byte-identical to a ≤1.4 doc (every prior seal/wire golden stays valid).
 
 ### 9.2 Suppression order (R1′ — mandatory, version-level)
 ```
-1. join tombstone map:  key → max(deleted_at)
-2. join facts as §4, BUT drop any fact VERSION with deleted_at >= fact_clock
+1. join tombstone map:  key → max(deleted_at)                 (as instants, §3.1)
+2. join facts as §4, BUT drop any fact VERSION with instant(deleted_at) >= instant(fact_clock)
    BEFORE it is grouped/field-merged (its scalars AND tags/links/extra all vanish)
 3. emit surviving facts in canonical order
 ```
-`fact_clock = fact.timestamp or ""` (empty/missing sorts lowest). **delete-wins on ties** (`>=`).
+`fact_clock = fact.timestamp or ""` (empty/missing sorts lowest). Compared as **instants, not strings** (`.fafm` v1.2 §8.1; `…12:00:00+05:00` is before `…09:00:00Z`). **delete-wins on ties** (`>=`).
 
 **Why version-level, not emit-level (R1 → R1′).** The 1.5 design first specified suppression *only* on the final emitted fact. The N-version differential falsified associativity (2026-07-27): a same-id field-merge unions tags/links across versions, so a **forgotten low-clock version** straddled by a tombstone (`fact_clock ≤ deleted_at < re-etch_clock`) would fold its `L1` into a *surviving* re-etch in one fold order but be suppressed-then-gone in the other. Dropping the outranked **version** before the field-merge is the field-level realization of the same "no zombie tags/links/extra" rule — and restores associativity. Suppression is still **whole-version** (never a partial field-strip); priority / `content_hash` must **not** resurrect a fact on an equal clock.
 

@@ -32,6 +32,8 @@ dev = [
     "ruff>=0.6",
     "types-PyYAML>=6.0",
     "mypy>=1.0",
+    "jsonschema>=4.18",  # .fafm v1.2 spec conformance (JSON Schema 2020-12)
+    "rfc3339-validator>=0.1.4",  # makes jsonschema assert format: date-time
 ]
 
 [project.urls]

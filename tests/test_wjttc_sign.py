@@ -48,10 +48,29 @@ FIXTURE_PUBLIC_PEM = (
     b"-----END PUBLIC KEY-----\n"
 )
 
+# recaptured 2026-11-04 for version: '1.2' (.fafm v1.2 §10 — the only payload change).
 # captured 2026-07-31 from _fixture_soul() signed under _TEST_SEED @ SPK1 v1 +
 # SIGNED + epoch: 0 (MERGE §11). Changing this is a wire-format change —
 # conscious, a compat decision.
 SIGNED_GOLDEN_HEX = (
+    "53504b31010001001ff1f9266c010000637265617465643a2027323032362d30312d30"
+    "315430303a30303a30305a270a65706f63683a20300a696e6465783a0a2d206120e280"
+    "9420616c7068610a2d20273f20e280942062657461270a6c6173745f6574636865643a"
+    "2027323032362d30312d30325430303a30303a30305a270a6d656d6f72793a0a202063"
+    "7573746f6d3a207b7d0a202066616374733a0a20202d2069643a20610a202020207072"
+    "696f726974793a20686967680a20202020746578743a20616c7068610a202020207469"
+    "6d657374616d703a2027323032362d30312d30315430303a30303a30305a270a20202d"
+    "20626574610a20206b3a20760a2020707265666572656e6365733a207b7d0a20207365"
+    "7373696f6e733a0a20202d2069643a2073310a202020206e3a20310a6e616d65706f69"
+    "6e743a2027407369676e270a70726f66696c653a206b6e6f776c656467650a72657465"
+    "6e74696f6e3a20666f72657665720a76657273696f6e3a2027312e32270aed27e93d13"
+    "d68a69652a980ee74326190fad2a9f62bb5d51801a019f7740c126a9034a54c2f1fbbc"
+    "328cd9ba128b01a5f8de21957e191f0ca6d6487f5da52f00"
+)
+
+# The same soul sealed by <= 2.1.0 (writes version: '1.1'). Kept so a 1.1-era packet
+# is proven to still read to the same logical soul after the v1.2 version bump.
+SIGNED_GOLDEN_V11_HEX = (
     "53504b3101000100464fbf246c010000637265617465643a2027323032362d30312d30"
     "315430303a30303a30305a270a65706f63683a20300a696e6465783a0a2d206120e280"
     "9420616c7068610a2d20273f20e280942062657461270a6c6173745f6574636865643a"
@@ -67,6 +86,7 @@ SIGNED_GOLDEN_HEX = (
     "609ad00d00fbbadb7785fd2a1fd02aa531740b30b2e8150d"
 )
 SIGNED_GOLDEN = bytes.fromhex(SIGNED_GOLDEN_HEX)
+SIGNED_GOLDEN_V11 = bytes.fromhex(SIGNED_GOLDEN_V11_HEX)
 
 
 def _fixture_soul() -> Soul:
@@ -108,6 +128,12 @@ def test_s2_signed_golden_is_byte_identical() -> None:
 
 def test_s2_signed_golden_verifies_to_soul() -> None:
     assert souls_equal(verify_packet(SIGNED_GOLDEN, FIXTURE_PUBLIC_PEM), _fixture_soul())
+
+
+def test_s2_v11_era_signed_golden_still_verifies() -> None:
+    """A signed packet from <= 2.1.0 (version: '1.1') still verifies and reads to the
+    same logical soul after the v1.2 version bump."""
+    assert souls_equal(verify_packet(SIGNED_GOLDEN_V11, FIXTURE_PUBLIC_PEM), _fixture_soul())
 
 
 def test_s2_fixture_pub_pem_matches_seed() -> None:

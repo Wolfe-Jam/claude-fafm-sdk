@@ -144,7 +144,7 @@ def test_finish_from_claude_dir_schema_shape(tmp_path):
 
     path = soul.to_file(tmp_path / "converted.fafm")
     doc = yaml.safe_load(path.read_text(encoding="utf-8"))
-    assert doc["version"] == "1.1"
+    assert doc["version"] == "1.2"
     assert "facts" in doc["memory"]
     assert "entries" not in doc["memory"]
     assert "index" in doc

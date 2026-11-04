@@ -11,6 +11,7 @@ from __future__ import annotations
 import binascii
 import struct
 
+from claude_fafm_sdk.merge import souls_equal
 from claude_fafm_sdk.packet import HEADER_SIZE, MAGIC, VERSION, from_packet, to_packet
 from claude_fafm_sdk.soul import Fact, Soul
 
@@ -34,9 +35,26 @@ def _wire_soul() -> Soul:
     return s
 
 
-# captured 2026-07-31 from _wire_soul() @ SPK1 v1 + epoch: 0 (MERGE §11).
+# captured 2026-07-31 from _wire_soul() @ SPK1 v1 + epoch: 0 (MERGE §11); recaptured
+# 2026-11-04 for version: '1.2' (.fafm v1.2 §10 — the only byte change).
 # Changing this is a wire change.
 GOLDEN_HEX = (
+    "53504b3101000000aef172b96c010000637265617465643a2027323032362d30312d30"
+    "315430303a30303a30305a270a65706f63683a20300a696e6465783a0a2d206120e280"
+    "9420616c7068610a2d20273f20e280942062657461270a6c6173745f6574636865643a"
+    "2027323032362d30312d30325430303a30303a30305a270a6d656d6f72793a0a202063"
+    "7573746f6d3a207b7d0a202066616374733a0a20202d2069643a20610a202020207072"
+    "696f726974793a20686967680a20202020746578743a20616c7068610a202020207469"
+    "6d657374616d703a2027323032362d30312d30315430303a30303a30305a270a20202d"
+    "20626574610a20206b3a20760a2020707265666572656e6365733a207b7d0a20207365"
+    "7373696f6e733a0a20202d2069643a2073310a202020206e3a20310a6e616d65706f69"
+    "6e743a20274077697265270a70726f66696c653a206b6e6f776c656467650a72657465"
+    "6e74696f6e3a20666f72657665720a76657273696f6e3a2027312e32270a"
+)
+
+# The same soul sealed by <= 2.1.0 (writes version: '1.1'). Kept so a 1.1-era packet
+# is proven to still read to the same logical soul after the v1.2 version bump.
+GOLDEN_V11_HEX = (
     "53504b3101000000f74f34bb6c010000637265617465643a2027323032362d30312d30"
     "315430303a30303a30305a270a65706f63683a20300a696e6465783a0a2d206120e280"
     "9420616c7068610a2d20273f20e280942062657461270a6c6173745f6574636865643a"
@@ -50,6 +68,7 @@ GOLDEN_HEX = (
     "6e74696f6e3a20666f72657665720a76657273696f6e3a2027312e31270a"
 )
 GOLDEN = bytes.fromhex(GOLDEN_HEX)
+GOLDEN_V11 = bytes.fromhex(GOLDEN_V11_HEX)
 
 
 def test_wire_seal_is_byte_identical_to_golden():
@@ -78,3 +97,12 @@ def test_wire_crc_is_payload_only():
     assert crc == (binascii.crc32(payload) & 0xFFFFFFFF)
     # CRC of the WHOLE packet is different — proves it's payload-only, not all-bytes
     assert crc != (binascii.crc32(GOLDEN) & 0xFFFFFFFF)
+
+
+def test_wire_v11_era_packet_still_reads_to_same_soul():
+    """A packet sealed by <= 2.1.0 (version: '1.1') reads to the same logical soul;
+    re-sealing it writes '1.2' (never lower than read, §10)."""
+    soul = from_packet(GOLDEN_V11)
+    assert souls_equal(soul, _wire_soul())
+    assert soul.version_read == "1.1"
+    assert to_packet(soul) == GOLDEN

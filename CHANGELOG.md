@@ -3,6 +3,24 @@
 All notable changes to `claude-fafm-sdk` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+**`.fafm` v1.2 alignment** (spec `Wolfe-Jam/faf` @ `0277dc2`). Proposed version: **2.2.0** (minor; behaviour changes for non-`Z` / fractional clocks and unknown priorities). Not published.
+
+### Changed
+- **Clocks compare as instants, not strings** (§8.1). Tombstone suppression and the tombstone join (`max(deleted_at)`) use the UTC instant, so `…12:00:00+05:00` (07:00Z) is before a `…09:00:00Z` delete and `…09:00:00.5Z` is after `…09:00:00Z`. A tie still suppresses (delete wins), a fact with no `timestamp` is still suppressed, a strictly later re-etch still survives. The fact LWW keys and Rule T use the same order (MERGE §3.1); string order for facts with instant order for tombstones is not associative. Every copy changed: `soul.py` (wire loader, `forget` upsert), `merge.py`, `tests/reference_merge.py`. For SDK-emitted `%Y-%m-%dT%H:%M:%SZ` stamps the order is unchanged.
+- **Writes `version: "1.2"`** (§10), and never a lower version than the document read (`Soul.version_read`; carried through merge, compact, migrate and seal). Sealed packet bytes change by that one field; the SPK1 wire and signed goldens are recaptured and the 2.1.0 packets are kept as tests that still read and verify.
+- **Unknown `priority` values are preserved** (§10). `{text: x, priority: urgent}` round-trips unchanged (2.1.0 wrote the bare string `- x`). The §6.1 legacy mapping still applies (`low → ephemeral`, `medium → standard`). Consumers still rank an unknown value as `standard` (`canonical_priority`). New helper `wire_priority`.
+- **`normalize_text` strips exactly the §8.1 set** (29 code points, after NFC) instead of `str.strip()`. Same output as 2.1.0 on Python 3.13; a later Python can no longer move `txt_hash` off spec.
+
+### Added
+- **Spec conformance tests** (`tests/test_fafm_spec_conformance.py`): the `.fafm` v1.2 corpus vendored at `tests/fixtures/fafm-spec-v1.2/` (source commit + SHA-256 manifest in `SOURCE.md`). 13/13 fixtures against `fafm.schema.json` per `expected.json` (with the §10 date rule), 14/14 `txt_hash` vectors through all three normalization copies.
+- `tests/test_wjttc_fafm_v12.py` — one section per gap above.
+- `[dev]`: `jsonschema>=4.18`, `rfc3339-validator>=0.1.4`.
+
+### Known gap (not fixed here)
+- `Soul.from_doc` keeps PyYAML-native datetimes from unquoted dates and drops a tombstone whose `deleted_at` is not a string (§10 date rule). Pinned as a strict `xfail` in the conformance suite.
+
 ## [2.1.0] — 2026-09-07 — The FastMCP 4 Edition
 
 **FastMCP 4 is now the floor.** The optional `[namepoint]` extra requires `fastmcp>=4.0.0` — the FAF Python family standard.
