@@ -12,15 +12,27 @@ one vendor.
 
 | | |
 |--|--|
-| **Edition** | **The FastMCP 4 Edition** |
-| **Release** | **[2.1.0](https://pypi.org/project/claude-fafm-sdk/2.1.0/)** (deps: `[namepoint]` → `fastmcp>=4.0.0`) |
+| **Edition** | **The Spec v1.2 Edition** |
+| **Release** | **[2.2.0](https://pypi.org/project/claude-fafm-sdk/2.2.0/)** (deps: `[namepoint]` → `fastmcp>=4.0.0`) |
 | **Lattice** | **§11 epoch** on **1.5** tombstones · both roads · archive-first (unchanged) |
 
-### What's New in 2.1.0 — The FastMCP 4 Edition
+### What's New in 2.2.0 — The Spec v1.2 Edition
+
+**Reads and writes .fafm v1.2 to the letter: clocks compare as instants, and nothing it read is lowered, dropped or lost.**
+
+- **Clocks are instants.** Tombstone suppression, the tombstone join and fact ordering compare real moments in time, so `12:00+05:00` is before `09:00Z`. A delete still wins a tie; a later re-etch still survives.
+- **Nothing it read is lost.** It never writes a lower `version` than it read, keeps unknown `priority` and `type` values, and keeps a tombstone even when its dates are unquoted.
+- **Text keys are pinned.** `txt_hash` strips exactly the 29 code points the spec lists, after NFC, so a future Python can't move it.
+- **The spec's own tests run here:** all 13 v1.2 conformance fixtures and 14 `txt_hash` vectors.
+
+Documents the SDK wrote before (seconds-precision `Z`) merge exactly as they did. Full notes: [CHANGELOG](CHANGELOG.md).
+
+<details><summary><strong>What's New in 2.1.0 — The FastMCP 4 Edition</strong></summary>
 
 **FastMCP 4 is now the floor.** The optional `[namepoint]` extra requires `fastmcp>=4.0.0` — the FAF Python family standard.
 
 The offline-first core is untouched — no new deps, no API change, the lattice is unchanged. `client.py`'s `Client` + `StreamableHttpTransport` pattern works as-is on FastMCP 4 (the MCPaaS calls are plain reads/writes, so the `mode="auto"` default is fine); no `httpx` in source, so `httpx` → `httpx2` is a non-event. `pydantic>=2.12` arrives transitively only when `[namepoint]` is installed.
+</details>
 
 <details><summary><strong>What's New in 2.0.0 — Compactable</strong></summary>
 

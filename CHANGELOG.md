@@ -3,9 +3,11 @@
 All notable changes to `claude-fafm-sdk` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [2.2.0] — 2026-11-04 — The Spec v1.2 Edition
 
-**`.fafm` v1.2 alignment** (spec `Wolfe-Jam/faf` @ `0277dc2`). Proposed version: **2.2.0** (minor; behaviour changes for non-`Z` / fractional clocks and unknown priorities). Not published.
+**Reads and writes .fafm v1.2 to the letter: clocks compare as instants, and nothing it read is lowered, dropped or lost.**
+
+Aligns with `.fafm` spec v1.2 (`Wolfe-Jam/faf` @ `0277dc2`). 431 tests pass. Behaviour changes only for non-`Z` or fractional clocks and unknown priorities; documents the SDK wrote before (seconds-precision `Z`) merge as they did.
 
 ### Changed
 - **Clocks compare as instants, not strings** (§8.1). Tombstone suppression and the tombstone join (`max(deleted_at)`) use the UTC instant, so `…12:00:00+05:00` (07:00Z) is before a `…09:00:00Z` delete and `…09:00:00.5Z` is after `…09:00:00Z`. A tie still suppresses (delete wins), a fact with no `timestamp` is still suppressed, a strictly later re-etch still survives. The fact LWW keys and Rule T use the same order (MERGE §3.1); string order for facts with instant order for tombstones is not associative. Every copy changed: `soul.py` (wire loader, `forget` upsert), `merge.py`, `tests/reference_merge.py`. For SDK-emitted `%Y-%m-%dT%H:%M:%SZ` stamps the order is unchanged.
