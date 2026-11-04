@@ -95,6 +95,15 @@ def instant(ts: Any) -> tuple[Any, ...]:
     return (2, whole, (frac or "").rstrip("0"))
 
 
+def _header_key(ts: Any) -> tuple[Any, ...]:
+    """``created`` / ``last_etched``: earlier instant first, then the raw spelling.
+
+    Two spellings of one instant stay a commutative min/max. Seconds-precision
+    ``Z`` still matches string order.
+    """
+    return (instant(ts), "" if ts is None else str(ts))
+
+
 def _canonical_json(obj: Any) -> str:
     return json.dumps(obj, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 
@@ -407,7 +416,7 @@ def merge_souls(a: Soul, b: Soul) -> Soul:
         a.namepoint,
         profile=_merge_scalar_register(a.profile, b.profile),
         retention=_merge_scalar_register(a.retention, b.retention),
-        created=min(a.created, b.created),
+        created=min(a.created, b.created, key=_header_key),
         facts=surviving,
         sessions=_merge_sessions(a.sessions, b.sessions),
         preferences=_merge_opaque_map(a.preferences, b.preferences),
@@ -418,7 +427,7 @@ def merge_souls(a: Soul, b: Soul) -> Soul:
         epoch=ea,
         compaction_receipts=receipts,
     )
-    merged.last_etched = max(a.last_etched or "", b.last_etched or "")
+    merged.last_etched = max(a.last_etched, b.last_etched, key=_header_key)
     merged.rebuild_index()
     return merged
 

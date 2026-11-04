@@ -263,7 +263,8 @@ def test_header_clocks_merge_by_instant():
     left.last_etched = "2026-01-01T09:00:00Z"
     right = _Soul("@d", created="2026-01-01T12:00:00+05:00")  # 07:00Z
     right.last_etched = "2026-01-01T12:00:00+05:00"
-    for a, b in ((left, right), (right, left)):
-        m = merge_souls(a, b)
-        assert m.created == "2026-01-01T12:00:00+05:00"  # the earlier instant
-        assert m.last_etched == "2026-01-01T09:00:00Z"  # the later instant
+    for join in (merge_souls, ref.merge_souls):
+        for a, b in ((left, right), (right, left)):
+            m = join(a, b)
+            assert m.created == "2026-01-01T12:00:00+05:00"  # the earlier instant
+            assert m.last_etched == "2026-01-01T09:00:00Z"  # the later instant

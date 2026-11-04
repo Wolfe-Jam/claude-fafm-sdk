@@ -19,7 +19,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow 
 - `[dev]`: `jsonschema>=4.18`, `rfc3339-validator>=0.1.4`.
 
 - **Unquoted dates** (§10): `Soul.from_doc` turns YAML-native dates back into RFC 3339 strings (UTC with `Z`) before reading, so a tombstone with an unquoted `deleted_at` is kept and dates are written back as `…Z`, not `2026-11-02 00:00:00+00:00`. 2.1.0 dropped that tombstone.
-- **`created` / `last_etched` merge by instant**, not string order (ties broken by the raw spelling).
+- **`created` / `last_etched` merge by instant**, not string order (ties broken by the raw spelling). Both copies: `merge.py` and `tests/reference_merge.py`.
 
 ## [2.1.0] — 2026-09-07 — The FastMCP 4 Edition
 
