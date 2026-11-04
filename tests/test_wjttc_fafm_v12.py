@@ -233,3 +233,37 @@ def test_normalize_strips_exactly_the_set(normalize):
 def test_set_matches_python_3_13_str_strip():
     """Same output as 2.1.0 on 3.13: the pinned set IS 3.13's ``str.strip()`` set."""
     assert {cp for cp in range(0x110000) if chr(cp).strip() == ""} == SPEC_STRIP
+
+
+# ── §10 date rule on load + header clocks by instant (review of PR #20) ──────
+
+
+def test_unquoted_dates_keep_tombstone_and_write_z():
+    import yaml as _yaml
+
+    from claude_fafm_sdk.soul import Soul as _Soul
+
+    text = (
+        'version: "1.2"\nnamepoint: "@d"\n'
+        "created: 2026-11-02T00:00:00Z\nlast_etched: 2026-11-02T00:00:00Z\n"
+        "memory:\n  facts:\n    - x\n  tombstones:\n"
+        '    - id: "old-fact"\n      deleted_at: 2026-11-01T09:00:00Z\n'
+    )
+    out = _yaml.safe_load(_Soul.from_doc(_yaml.safe_load(text)).to_yaml())
+    assert out["created"] == "2026-11-02T00:00:00Z"
+    assert out["last_etched"] == "2026-11-02T00:00:00Z"
+    assert out["memory"]["tombstones"] == [{"id": "old-fact", "deleted_at": "2026-11-01T09:00:00Z"}]
+
+
+def test_header_clocks_merge_by_instant():
+    from claude_fafm_sdk.merge import merge_souls
+    from claude_fafm_sdk.soul import Soul as _Soul
+
+    left = _Soul("@d", created="2026-01-01T09:00:00Z")
+    left.last_etched = "2026-01-01T09:00:00Z"
+    right = _Soul("@d", created="2026-01-01T12:00:00+05:00")  # 07:00Z
+    right.last_etched = "2026-01-01T12:00:00+05:00"
+    for a, b in ((left, right), (right, left)):
+        m = merge_souls(a, b)
+        assert m.created == "2026-01-01T12:00:00+05:00"  # the earlier instant
+        assert m.last_etched == "2026-01-01T09:00:00Z"  # the later instant

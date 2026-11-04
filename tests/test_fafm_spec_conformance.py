@@ -112,16 +112,7 @@ _ROUND_TRIP = sorted(r for r, e in EXPECTED.items() if e["conforms"])
 @pytest.mark.parametrize(
     "rel",
     [
-        pytest.param(
-            r,
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason="known gap (not fixed here): Soul.from_doc keeps PyYAML datetimes "
-                "and drops a tombstone whose deleted_at is not a str (§10 date rule)",
-            ),
-        )
-        if r == "valid/unquoted-dates.fafm"
-        else r
+        r
         for r in _ROUND_TRIP
     ],
 )

@@ -105,6 +105,27 @@ _RFC3339 = re.compile(
 _EPOCH = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
 
 
+def _rfc3339_strings(value: Any) -> Any:
+    """Copy of ``value`` with YAML-native dates as RFC 3339 strings (.fafm §10).
+
+    An aware datetime becomes UTC with ``Z``; a naive one keeps its ISO form (it has
+    no offset to convert); a bare date becomes ``YYYY-MM-DD``. Everything else is
+    returned unchanged, so unknown fields round-trip as they were read.
+    """
+    if isinstance(value, datetime.datetime):
+        if value.tzinfo is None:
+            return value.isoformat()
+        utc = value.astimezone(datetime.timezone.utc).isoformat()
+        return utc[: -len("+00:00")] + "Z" if utc.endswith("+00:00") else utc
+    if isinstance(value, datetime.date):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {k: _rfc3339_strings(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_rfc3339_strings(v) for v in value]
+    return value
+
+
 def _instant_key(ts: Any) -> tuple[Any, ...]:
     """Total order on a clock string, by INSTANT (.fafm v1.2 §8.1). Data-model copy.
 
@@ -470,6 +491,9 @@ class Soul:
         """
         if not isinstance(doc, dict):
             raise TypeError("soul is not a YAML mapping")
+        # .fafm §10: a YAML loader may hand back native dates for unquoted timestamps;
+        # turn them back into RFC 3339 strings (UTC with Z) before anything reads them.
+        doc = _rfc3339_strings(doc)
         memory = doc.get("memory") or {}
         if not isinstance(memory, dict):
             memory = {}

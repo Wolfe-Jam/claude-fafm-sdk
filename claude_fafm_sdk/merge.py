@@ -85,6 +85,12 @@ _TS = re.compile(
 )
 
 
+def _header_key(ts: Any) -> tuple[Any, ...]:
+    """``created`` / ``last_etched`` order: by instant, then the raw spelling, so the
+    min/max join stays commutative when two spellings name the same instant."""
+    return (_clock(ts), "" if ts is None else str(ts))
+
+
 def _clock(ts: Any) -> tuple[Any, ...]:
     """Total order on a fact ``timestamp`` / tombstone ``deleted_at``, by instant.
 
@@ -412,7 +418,7 @@ def merge_souls(a: Soul, b: Soul) -> Soul:
         profile=_det_scalar(a.profile, b.profile),
         facts=facts,
         retention=_det_scalar(a.retention, b.retention),
-        created=min(a.created, b.created),
+        created=min(a.created, b.created, key=_header_key),
         sessions=_merge_sessions(a.sessions, b.sessions),
         preferences=_merge_opaque(a.preferences, b.preferences),
         custom=_merge_opaque(a.custom, b.custom),
@@ -424,7 +430,7 @@ def merge_souls(a: Soul, b: Soul) -> Soul:
         epoch=ea,  # same as eb after E1
         compaction_receipts=receipts,
     )
-    merged.last_etched = max(a.last_etched, b.last_etched)
+    merged.last_etched = max(a.last_etched, b.last_etched, key=_header_key)
     # .fafm §10: a writer never writes a lower version than it read (max of both sides).
     merged.version_read = max_version_read(a.version_read, b.version_read)
     merged.rebuild_index()
