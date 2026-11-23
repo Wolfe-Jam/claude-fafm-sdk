@@ -194,4 +194,35 @@ test_history:
       failed: 0
       skipped: 13
     trigger: github-actions
-last_updated: 2026-11-04T18:54:09.587Z
+  - timestamp: 2026-11-23T04:28:33.313Z
+    result: PASSED
+    tests:
+      total: 404
+      passed: 391
+      failed: 0
+      skipped: 13
+    trigger: github-actions
+    skipped_tests:
+      names:
+        - tests.test_wjttc_aero > test_aero_live_pull_memory_faf_one
+        - tests.test_wjttc_cli > test_tyre_live_push_pull_sync_roundtrip
+        - tests.test_wjttc_cli_sign
+        - tests.test_wjttc_fafm_v12 > test_set_matches_python_3_13_str_strip
+        - tests.test_wjttc_from_claude_dir >
+          test_optional_live_claude_memory_smoke
+        - tests.test_wjttc_interop_corpus >
+          test_a6_optional_large_knowledge_loads
+        - tests.test_wjttc_interop_corpus >
+          test_b_path_a_conformance_knowledge_via_soul_then_voice
+        - tests.test_wjttc_interop_corpus >
+          test_b_path_a_soul_save_then_fafmemory_from_file
+        - tests.test_wjttc_interop_corpus >
+          test_b_path_a_voice_fixture_via_soul_then_voice
+        - tests.test_wjttc_interop_corpus >
+          test_b_path_b_voice_to_file_then_soul_load
+        - tests.test_wjttc_interop_corpus >
+          test_b_path_b_voice_to_file_voice_profile_then_soul_load
+        - tests.test_wjttc_recall_cross_impl
+        - tests.test_wjttc_sign
+      hash: sha256:3468e4efc8a2ed07aa62e51b4072d4ba5066837632852a993cc1aa2e2a606457
+last_updated: 2026-11-23T04:28:33.321Z
